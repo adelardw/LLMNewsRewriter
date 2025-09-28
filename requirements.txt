@@ -30,6 +30,7 @@ undetected-chromedriver
 duckduckgo-search
 openai
 icrawler
+Path
 googlesearch-python
 selenium
 google-api-python-client
