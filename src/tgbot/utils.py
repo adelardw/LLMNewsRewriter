@@ -296,3 +296,75 @@ def find_ads(post: str):
             return True
     
     return False
+
+
+def normalize_text(text: str) -> str:
+    text = text.lower().replace('ё', 'е')
+    return re.sub(r'[^\w\s]', ' ', text).strip()
+
+
+
+def parse_line_to_keywords(line: str) -> list[str]:
+
+    keywords = re.findall(r'«([^»]+)»|\"([^\"]+)\"', line)
+    flat_keywords = [item for tpl in keywords for item in tpl if item]
+
+    if not flat_keywords:
+        return []
+
+   
+    normalized_keywords = []
+    for keyword in flat_keywords:
+        parts = re.split(r'[,/]', keyword)
+        for part in parts:
+            norm_part = normalize_text(part)
+            if len(norm_part) > 2:
+                normalized_keywords.append(norm_part)
+    
+    return list(set(normalized_keywords))
+
+
+
+def load_and_parse_forbidden_lists(path: str) -> dict[str, list[str]]:
+    """
+    Читает файл и создает словарь { "оригинальная строка": ["ключевое слово 1", ...] }
+    """    
+    parsed_data = {}
+    with open(path, 'r', encoding='utf-8') as f:
+        for line in f:
+            original_line = line.strip()
+            if not original_line:
+                continue
+            keywords = parse_line_to_keywords(original_line)
+            if keywords:
+                parsed_data[original_line] = keywords
+    return parsed_data
+
+
+def search_in_forbidden(generated_post: str, extrim_data: dict, foreign_data: dict) -> list[str]:
+
+    normalized_post = normalize_text(generated_post)
+    found_messages = set() 
+    base_message_extrim = '{} - является экстремистом / экстремистской организацией'
+    base_message_foreign = '{} - является иноагентом'
+
+
+    for original_line, keywords in extrim_data.items():
+        for keyword in keywords:
+            if re.search(r'\b' + re.escape(keyword) + r'\b', normalized_post):
+                found_messages.add(base_message_extrim.format(original_line))
+                break 
+
+    for original_line, keywords in foreign_data.items():
+        for keyword in keywords:
+            if re.search(r'\b' + re.escape(keyword) + r'\b', normalized_post):
+                found_messages.add(base_message_foreign.format(original_line))
+                break
+
+    return list(found_messages)
+
+
+extrim_file = 'src/data/extrim.txt'
+foreign_file = 'src/data/foreign.txt'
+extrim_dict = load_and_parse_forbidden_lists(extrim_file)
+foreign_dict = load_and_parse_forbidden_lists(foreign_file)

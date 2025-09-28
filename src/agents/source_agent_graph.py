@@ -159,7 +159,8 @@ def rewriter_node(state):
         generation = rewriter_agent.invoke({'post': post,'grade':grade,
                                         'media_ctx':media_ctx})
     else:
-        generation = rewriter_agent.invoke({'post': post,'grade':grade})
+        generation = rewriter_agent.invoke({'post': post,'grade':grade,
+                                            'media_ctx':''})
     # Сбрасываем состояния
     state['is_replyed_message'] = state['is_selected_channels'] = state['decision'] = False
     state['media_ctx'] = None
