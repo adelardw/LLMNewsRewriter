@@ -117,13 +117,23 @@ def get_channel_posts(channel_name: str, k: int = 5,
     for message_widget in reversed(messages[-k:]):
         post_data = {}
 
-        datetime = message_widget.find('a', class_='tgme_widget_message_date').\
-                                find('time', class_='time')['datetime']
-                                
+        date_link_element = message_widget.find('a', class_='tgme_widget_message_date')
+        
+        if date_link_element:
+            post_url_val = date_link_element.get('href', 'N/A')
+            time_tag = date_link_element.find('time', class_='time')
+            if time_tag:
+                datetime_val = time_tag.get('datetime', 'N/A')
+
+
         text_element = message_widget.find('div', class_='tgme_widget_message_text')
+        if not text_element:
+            continue
+
         text = text_element.get_text(separator='\n', strip=True) if text_element else ""
         post_data['text'] = text
-        post_data['datetime'] = datetime
+        post_data['post_url'] = post_url_val
+        post_data['datetime'] = datetime_val
 
         is_ads = False
         for a_tag in text_element.find_all('a'):
@@ -134,6 +144,8 @@ def get_channel_posts(channel_name: str, k: int = 5,
                     break
 
         post_data['is_ads'] = is_ads
+        post_data['is_video'] = message_widget.find('video') is not None
+
         media_links = []
         views_element = message_widget.find('span', class_='tgme_widget_message_views')
         views_element = parse_count(views_element.text)
@@ -223,8 +235,12 @@ def get_channel_single_post_info(channel_name: str, post_id: str,
 
     post_data['datetime'] = datetime                                
     text_element = message_container.find('div', class_='tgme_widget_message_text')
+    if not text_element:
+        return None
     text = text_element.get_text(separator='\n', strip=True) if text_element else ""
     post_data['text'] = text
+
+    post_data['post_url'] = base_url
 
     is_ads = False
     for a_tag in text_element.find_all('a'):

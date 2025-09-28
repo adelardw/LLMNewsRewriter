@@ -11,6 +11,7 @@ from src.tools.config import endpoints
 
 from src.agents.prompts import (simillar_prompt, relevance_input_prompt,post_creator_prompt,
                                 rewiritter_prompt, relevance_prompt, image_selection_prompt,theme_prompt,
+                                image_description_prompt,
                                 FORBIDDEN_ANSWER)
 
 from src.agents.agent_schemas import SourceAgentGraph
@@ -19,6 +20,8 @@ from src.tgbot.cache import cache_db
 from src.agents.utils import measure_time, redis_update_links
 from src.tools.google_web_search import get_google_image_links
 from src.llms.open_router import OpenRouterChat
+#import datetime as dt
+#import pytz
 
 
 llm = OpenRouterChat(api_key=os.getenv('OPEN_ROUTER_API_KEY'),
@@ -35,6 +38,7 @@ post_creator_agent = post_creator_prompt | llm | StrOutputParser()
 search_query_gen_agent = theme_prompt | llm | StrOutputParser()
 
 image_selection_agent = image_selection_prompt | text_image_llm | StrOutputParser()
+image_description_agent = image_description_prompt | text_image_llm | StrOutputParser()
 
 ckpt = InMemorySaver()
 
@@ -109,6 +113,27 @@ def classifier_node(state):
 
 
 @measure_time
+def media_ctx_router(state):
+    if state.get('media_links', []):
+        return "✈️🖼️MediaCtxNode"
+    else:
+        return "📄✍️RewriterNode"
+
+
+@measure_time
+def media_ctx_node(state):
+
+    if media_links:=state.get('media_links', []):
+        try:
+            image_description = image_description_agent.invoke({'image_url': media_links})
+            return {**state, 'media_ctx': image_description}
+        
+        except Exception as e:
+            logger.info(f'Случилась какая - то ошибка описании картинки к посту {e}')
+    
+    return {**state, 'media_ctx': None}
+
+@measure_time
 def web_ctx_node(state):
     search_query = state['user_message']
     web_ctx = retriever(search_query)
@@ -130,10 +155,15 @@ def creator_post_node(state):
 def rewriter_node(state):
     post = state['post']
     grade = state['grade']
-    generation = rewriter_agent.invoke({'post': post,'grade':grade})
+    if media_ctx:=state.get('media_ctx', None):
+        generation = rewriter_agent.invoke({'post': post,'grade':grade,
+                                        'media_ctx':media_ctx})
+    else:
+        generation = rewriter_agent.invoke({'post': post,'grade':grade})
     # Сбрасываем состояния
     state['is_replyed_message'] = state['is_selected_channels'] = state['decision'] = False
-
+    state['media_ctx'] = None
+    state['media_links'] = []
     return {**state, 'generation': generation}
 
 @measure_time
@@ -151,8 +181,15 @@ def select_image_to_post_node(state):
     search_query = state['search_query']
     generated_post = state['generation']
     
-    #cached_links = redis_img_find(cache_db)    
-    finded_links =  get_google_image_links(search_query, max_num=5)
+    #cached_links = redis_img_find(cache_db)
+    #tz = os.getenv('TIMEZONE')  
+    #now = dt.datetime.now(tz=pytz.timezone(tz))
+    #delta = dt.timedelta(7)
+    #last_date = now = delta
+
+    filters = {'date': 'pastweek'}
+
+    finded_links =  get_google_image_links(search_query, max_num=5, filters = filters)
     #finded_links = links_filter(finded_links)
     #finded_links += cached_links
 
@@ -183,6 +220,7 @@ workflow = StateGraph(SourceAgentGraph)
 workflow.add_node("✅RelevanceQueryNode", relevance_query_node)
 workflow.add_node('🕸️🌏FindContextinWebNode', web_ctx_node)
 workflow.add_node('👀⁉️ClassifierReactionNode', classifier_node)
+workflow.add_node('✈️🖼️MediaCtxNode', media_ctx_node)
 workflow.add_node('📄✍️RewriterNode', rewriter_node)
 workflow.add_node("📱FindSimillarThemeNode", simillar_node)
 workflow.add_node("✈️🕸️🌏CreatePostFromWebSearchNode", creator_post_node)
@@ -215,7 +253,13 @@ workflow.add_edge('🕸️🌏FindContextinWebNode', '✈️🕸️🌏CreatePos
 workflow.add_edge('✈️🕸️🌏CreatePostFromWebSearchNode', "👀🕸️🌏MakeSearchQuery")
 
 
-workflow.add_edge("👀⁉️ClassifierReactionNode","📄✍️RewriterNode")
+workflow.add_conditional_edges('👀⁉️ClassifierReactionNode',
+                               media_ctx_router,
+                               {"✈️🖼️MediaCtxNode":"✈️🖼️MediaCtxNode",
+                                "📄✍️RewriterNode":"📄✍️RewriterNode"})
+
+
+workflow.add_edge("✈️🖼️MediaCtxNode","📄✍️RewriterNode")
 workflow.add_edge("📄✍️RewriterNode", "👀🕸️🌏MakeSearchQuery")
 
 workflow.add_edge("👀🕸️🌏MakeSearchQuery", "👀🖼️SelectImage4Post")

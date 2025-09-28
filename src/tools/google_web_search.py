@@ -77,7 +77,7 @@ class LinkCollectorDownloader(ImageDownloader):
 
 
 
-def get_google_image_links(keyword, max_num=5, filters=None):
+def get_google_image_links(keyword, max_num=5, filters=None) -> list[str]:
     """Функция для получения списка ссылок на изображения"""
 
     crawler = LinkCollectorGoogleImageCrawler()

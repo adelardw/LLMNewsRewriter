@@ -23,10 +23,10 @@ from src.tgbot.cache import cache_db
 from src.agents.source_agent_graph import graph
 from src.agents.prompts import FORBIDDEN_ANSWER
 from src.tgbot.bot_schemas import BotStates
-from src.tgbot.utils import (split_long_message, random_next_publication_in_current_hour,
+from src.tgbot.utils import (HFLCSSimTexts, split_long_message, random_next_publication_in_current_hour,
                              split_short_long_message,
-                            find_tg_channels_by_link, find_tg_channels, find_dublicates,find_ads,
-                            HFLCSSimTexts)
+                            find_tg_channels_by_link, find_tg_channels, find_dublicates,find_ads,search_in_forbidden,
+                            extrim_dict, foreign_dict)
 
 from src.tools.telegram_web_search import get_channel_posts, find_channel_names, get_channel_single_post_info
 from src.tools.config import tgc_search_kwargs
@@ -262,12 +262,15 @@ async def rewrite_channels_post_handler(message: types.Message, state: FSMContex
                 if not is_ads:
                     post = posts['text']
                     emoji_reactions = posts['reactions']
+                    is_video = posts['is_video']
 
                     dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
                     ads_cond = find_ads(post)
-                    if not dublcate_cond and not ads_cond:
+                    if not dublcate_cond and not ads_cond and not is_video:
+                        media_links = posts['media_links']
                         result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                        'is_selected_channels': True}
+                                        'is_selected_channels': True,
+                                        'media_links':media_links}
                                         ,config=config)
 
 
@@ -556,11 +559,17 @@ async def channel_look_up(channels: list, config: dict,
                 if not is_ads:
                     post = posts['text']
                     emoji_reactions = posts['reactions']
+                    is_video = posts['is_video']
+                    
                     dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
                     ads_cond = find_ads(post)
-                    if not dublcate_cond and not ads_cond:
+                    
+                    if not dublcate_cond and not ads_cond and not is_video:
+
+                        media_links = posts['media_links']
                         result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                        'is_selected_channels': True},config=config)
+                                        'is_selected_channels': True,
+                                        'media_links':media_links},config=config)
 
                         posts_to_rewtire.append(result['generation'])
                         images_links.append(result['image_url'])

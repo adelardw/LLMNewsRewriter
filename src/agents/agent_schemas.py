@@ -17,3 +17,5 @@ class SourceAgentGraph(TypedDict):
     search_query: str
     image_url: tp.Optional[str]
     image_num: int
+    media_ctx: tp.Optional[str]
+    media_links: list[str]

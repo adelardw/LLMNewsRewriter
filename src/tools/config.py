@@ -12,12 +12,14 @@ TIMEZONE = 'Europe/Moscow'
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 CX_ID = os.getenv('CX_ID')
 
+embed_model_name = os.getenv('EMBED_MODEL', 'cointegrated/LaBSE-en-ru')
 with open(CONFIG_PATH, 'r') as file:
 
     data = DictConfig(yaml.safe_load(file))
     user_agents = data.metadata.web.user_agents
     endpoints = data.metadata.web.tgstat_endpoints
     web_retrieve_kwargs = data.metadata.web_retrieve_kwargs
+    tgc_search_kwargs = data.metadata.tgc_search_kwargs
 
 def save_yaml(input_data: tp.Any, saved_key: str = 'user_agents'):
     data.metadata.web[saved_key] = input_data
