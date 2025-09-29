@@ -263,21 +263,34 @@ async def rewrite_channels_post_handler(message: types.Message, state: FSMContex
                     post = posts['text']
                     emoji_reactions = posts['reactions']
                     is_video = posts['is_video']
+                    media_links = posts['media_links']
 
                     dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
                     ads_cond = find_ads(post)
-                    if not dublcate_cond and not ads_cond and not is_video:
-                        media_links = posts['media_links']
-                        result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                        'is_selected_channels': True,
-                                        'media_links':media_links}
-                                        ,config=config)
+                    if not dublcate_cond and not ads_cond:
+                        
+                        if is_video and media_links:
+                            result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
+                                            'is_selected_channels': True,
+                                            'media_links':media_links}
+                                            ,config=config)
 
 
-                        results.append(result['generation'])
-                        images_links.append(result['image_url'])
-                        cache_db.set(f'post_{posts['post_url']}', post,
-                                    ex=24 * 60 * 60 )
+                            results.append(result['generation'])
+                            images_links.append(result['image_url'])
+                            cache_db.set(f'post_{posts['post_url']}', post,
+                                        ex=24 * 60 * 60 )
+                        elif not is_video:
+                            result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
+                                            'is_selected_channels': True,
+                                            'media_links':media_links}
+                                            ,config=config)
+
+
+                            results.append(result['generation'])
+                            images_links.append(result['image_url'])
+                            cache_db.set(f'post_{posts['post_url']}', post,
+                                        ex=24 * 60 * 60 )
                     else:
                         continue
 
@@ -560,29 +573,37 @@ async def channel_look_up(channels: list, config: dict,
                     post = posts['text']
                     emoji_reactions = posts['reactions']
                     is_video = posts['is_video']
-                    
+                    media_links = posts['media_links']
                     dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
                     ads_cond = find_ads(post)
                     
-                    if not dublcate_cond and not ads_cond and not is_video:
+                    if not dublcate_cond and not ads_cond:
+                        if is_video and media_links:
+                            result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
+                                            'is_selected_channels': True,
+                                            'media_links':media_links},config=config)
 
-                        media_links = posts['media_links']
-                        result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                        'is_selected_channels': True,
-                                        'media_links':media_links},config=config)
+                            posts_to_rewtire.append(result['generation'])
+                            images_links.append(result['image_url'])
 
-                        posts_to_rewtire.append(result['generation'])
-                        images_links.append(result['image_url'])
+                            cache_db.set(f'post_{url}', post,
+                                        ex=24 * 60 * 60 )
 
-                        cache_db.set(f'post_{url}', post,
-                                    ex=24 * 60 * 60 )
+                        elif not is_video:
+                            result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
+                                            'is_selected_channels': True,
+                                            'media_links':media_links},config=config)
+
+                            posts_to_rewtire.append(result['generation'])
+                            images_links.append(result['image_url'])
+
+                            cache_db.set(f'post_{url}', post,
+                                        ex=24 * 60 * 60 )
                     
                     
                     else:
-                        logger.info(f'FIND DUBLICATES: {dublcate_cond}; FIND ADDS: {ads_cond}; ')
                         continue
                 else:
-                    logger.info('ADS POST')
                     continue
 
     if posts_to_rewtire:
