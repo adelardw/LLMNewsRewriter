@@ -613,6 +613,8 @@ async def auto_rewrite_channels_post_handler(message: types.Message, storage: Ba
     if channels_result:
         await message.answer(f'Я смог найти следующие названия ТГК: {", ".join(channels_result)}',
                                                                 reply_markup=ReplyKeyboardRemove())
+        
+        await cmd_menu(message)
     
 
         scheduler.add_job(
