@@ -161,9 +161,10 @@ def post_generation(channel_name: str, config: dict):
                                     'media_links':media_links}
                                     ,config=config)
 
-                    logger.info(f'Sucessfully generation for {i} post!')
-                    results.append(result['generation'])
-                    images_links.append(result['image_url'])
+                    if result['generation']:
+                        logger.info(f'Sucessfull generation')
+                        results.append(result['generation'])
+                        images_links.append(result['image_url'])
 
                     cache_db.set(f'post_{posts['post_url']}', post,
                                     ex=24 * 60 * 60 )
@@ -171,7 +172,7 @@ def post_generation(channel_name: str, config: dict):
                 logger.info(f'SKIP BECAUSE: DUBLICATE ({dublcate_cond}) or ADS ({ads_cond})')
                 continue
         else:
-            logger.info(f'SKIP BECAUSE ADS (erid in media links)')
+            logger.info(f'SKIP BECAUSE ADS (erid)')
             continue
         
     return results, images_links
