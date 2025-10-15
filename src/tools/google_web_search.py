@@ -1,9 +1,13 @@
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import logging
+
+logging.getLogger('icrawler').setLevel(logging.WARNING)
+logging.getLogger('requests').setLevel(logging.WARNING)
+
 from icrawler.builtin import GoogleImageCrawler
 from icrawler import ImageDownloader
 import requests
-
 from loguru import logger
 from src.tools.config import CX_ID, GOOGLE_API_KEY
 

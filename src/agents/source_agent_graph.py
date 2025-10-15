@@ -11,7 +11,7 @@ from src.tools.config import endpoints
 
 from src.agents.prompts import (simillar_prompt, relevance_input_prompt,post_creator_prompt,
                                 rewiritter_prompt, relevance_prompt, image_selection_prompt,theme_prompt,
-                                image_description_prompt,
+                                image_description_prompt, meme_find_prompt,final_prompt ,
                                 FORBIDDEN_ANSWER)
 
 from src.agents.agent_schemas import SourceAgentGraph
@@ -36,9 +36,12 @@ simillar_agent = simillar_prompt | llm | StrOutputParser()
 rewriter_agent = rewiritter_prompt | llm | StrOutputParser()
 post_creator_agent = post_creator_prompt | llm | StrOutputParser()
 search_query_gen_agent = theme_prompt | llm | StrOutputParser()
+final_agent = final_prompt | llm | StrOutputParser()
 
 image_selection_agent = image_selection_prompt | text_image_llm | StrOutputParser()
 image_description_agent = image_description_prompt | text_image_llm | StrOutputParser()
+
+meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 
 ckpt = InMemorySaver()
 
@@ -115,10 +118,37 @@ def classifier_node(state):
 @measure_time
 def media_ctx_router(state):
     if state.get('media_links', []):
-        return "✈️🖼️MediaCtxNode"
+        return "🤡😂MemeNode"
     else:
         return "📄✍️RewriterNode"
 
+
+@measure_time
+def meme_node(state):
+    media_links = state.get('media_links', [])
+    post = state['post']
+    emoji_reactions = state.get('emoji_reactions', {})
+    
+    try:
+        is_meme = 'true' in meme_agent.invoke({'image_url': media_links,
+                                                   'post':post,
+                                                   'reactions': f'Реакции с поста: {emoji_reactions}'})
+        if is_meme:
+            state['generation'] = None
+            
+        state['is_meme'] = is_meme
+    except Exception as e:
+        logger.info(f'Случилась какая - то при определении мемности поста: {e}')
+        state['is_meme'] = False
+    
+    return state
+
+@measure_time
+def meme_router(state):
+    if not state['is_meme']:
+        return "✈️🖼️MediaCtxNode"
+    else:
+        return END
 
 @measure_time
 def media_ctx_node(state):
@@ -161,6 +191,7 @@ def rewriter_node(state):
     else:
         generation = rewriter_agent.invoke({'post': post,'grade':grade,
                                             'media_ctx':''})
+    #generation = final_agent.invoke({"post": generation})
     # Сбрасываем состояния
     state['is_replyed_message'] = state['is_selected_channels'] = state['decision'] = False
     state['media_ctx'] = None
@@ -221,12 +252,14 @@ workflow = StateGraph(SourceAgentGraph)
 workflow.add_node("✅RelevanceQueryNode", relevance_query_node)
 workflow.add_node('🕸️🌏FindContextinWebNode', web_ctx_node)
 workflow.add_node('👀⁉️ClassifierReactionNode', classifier_node)
+workflow.add_node('🤡😂MemeNode', meme_node)
 workflow.add_node('✈️🖼️MediaCtxNode', media_ctx_node)
 workflow.add_node('📄✍️RewriterNode', rewriter_node)
 workflow.add_node("📱FindSimillarThemeNode", simillar_node)
 workflow.add_node("✈️🕸️🌏CreatePostFromWebSearchNode", creator_post_node)
 workflow.add_node("👀🕸️🌏MakeSearchQuery", select_search_query_node)
 workflow.add_node('👀🖼️SelectImage4Post', select_image_to_post_node)
+
 
 
 
@@ -256,9 +289,13 @@ workflow.add_edge('✈️🕸️🌏CreatePostFromWebSearchNode', "👀🕸️�
 
 workflow.add_conditional_edges('👀⁉️ClassifierReactionNode',
                                media_ctx_router,
-                               {"✈️🖼️MediaCtxNode":"✈️🖼️MediaCtxNode",
+                               {"🤡😂MemeNode":"🤡😂MemeNode",
                                 "📄✍️RewriterNode":"📄✍️RewriterNode"})
 
+workflow.add_conditional_edges('🤡😂MemeNode',
+                               meme_router,
+                               {"✈️🖼️MediaCtxNode": "✈️🖼️MediaCtxNode",
+                                END: END})
 
 workflow.add_edge("✈️🖼️MediaCtxNode","📄✍️RewriterNode")
 workflow.add_edge("📄✍️RewriterNode", "👀🕸️🌏MakeSearchQuery")

@@ -162,5 +162,5 @@ class DuckDuckGoOnlineRAG:
 
 
 
-retriever =DuckDuckGoOnlineRAG(embed_model=embed_model_name,
+retriever = DuckDuckGoOnlineRAG(embed_model=embed_model_name,
                                **web_retrieve_kwargs)

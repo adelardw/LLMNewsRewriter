@@ -22,15 +22,23 @@ def measure_time(func):
 
 def links_filter(links: list[str]):
     res = []
+    forbidden_keywords = {'facebook', 'youtube', 'twitter','instagram'}
     headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
     if links:
         for link in links:
+            flag = False
+            for l in forbidden_keywords:
+                if l in link:
+                    flag = True
+
+            if flag:
+                continue 
             try:
                 answ = str(requests.get(link, headers=headers).status_code)
                 if answ == '200':
                     res.append(link)
-            except Exception as e:
-                logger.info(f'Недоступная ссылка: {e}')
+            except:
+                continue
         
         return res
     else:

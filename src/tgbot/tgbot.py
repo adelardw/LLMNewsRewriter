@@ -134,6 +134,48 @@ async def show_next_post(message: types.Message, state: FSMContext):
         await cmd_menu(message)
 
 
+def post_generation(channel_name: str, config: dict):
+    results = []
+    images_links = []
+    last_posts = get_channel_posts(channel_name, k=tgc_search_kwargs['max_post_per_channel'])
+    for i, posts in enumerate(last_posts):
+        logger.info(f'Select Post {i}')
+        is_ads = posts['is_ads']
+        url = posts['post_url']
+        if cache_db.get(f'post_{url}'):
+            logger.info(f'SKIP BECAUSE IN CACHE')
+            continue
+        if not is_ads:
+            post = posts['text']
+            emoji_reactions = posts['reactions']
+            is_video = posts['is_video']
+            media_links = posts['media_links']
+
+            dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
+            ads_cond = find_ads(post)
+            if not dublcate_cond and not ads_cond:
+                
+                if (is_video and media_links) or not is_video:
+                    result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
+                                    'is_selected_channels': True,
+                                    'media_links':media_links}
+                                    ,config=config)
+
+                    logger.info(f'Sucessfully generation for {i} post!')
+                    results.append(result['generation'])
+                    images_links.append(result['image_url'])
+
+                    cache_db.set(f'post_{posts['post_url']}', post,
+                                    ex=24 * 60 * 60 )
+            else:
+                logger.info(f'SKIP BECAUSE: DUBLICATE ({dublcate_cond}) or ADS ({ads_cond})')
+                continue
+        else:
+            logger.info(f'SKIP BECAUSE ADS (erid in media links)')
+            continue
+        
+    return results, images_links
+
 
 @router.message(CommandStart())
 @router.message(Command('menu'))
@@ -246,53 +288,19 @@ async def rewrite_channels_post_handler(message: types.Message, state: FSMContex
     user_id = message.from_user.id
     config = {"configurable": {"thread_id": user_id}}
     text = message.text
-    results = []
-    images_links = []
     channel_by_link = find_tg_channels_by_link(text)
     channels_by_endpoints = find_tg_channels(text)
     channels_result = channel_by_link + channels_by_endpoints
 
+    results = []
+    images_links = []
     if channels_result:
         await message.answer(f'Я смог найти следующие названия ТГК: {", ".join(channels_result)}',
                           reply_markup=ReplyKeyboardRemove())
         for chan in channels_result:
-            last_posts = get_channel_posts(chan, k=tgc_search_kwargs['max_post_per_channel'])
-            for posts in last_posts:
-                is_ads = posts['is_ads']
-                if not is_ads:
-                    post = posts['text']
-                    emoji_reactions = posts['reactions']
-                    is_video = posts['is_video']
-                    media_links = posts['media_links']
-
-                    dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
-                    ads_cond = find_ads(post)
-                    if not dublcate_cond and not ads_cond:
-                        
-                        if is_video and media_links:
-                            result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                            'is_selected_channels': True,
-                                            'media_links':media_links}
-                                            ,config=config)
-
-
-                            results.append(result['generation'])
-                            images_links.append(result['image_url'])
-                            cache_db.set(f'post_{posts['post_url']}', post,
-                                        ex=24 * 60 * 60 )
-                        elif not is_video:
-                            result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                            'is_selected_channels': True,
-                                            'media_links':media_links}
-                                            ,config=config)
-
-
-                            results.append(result['generation'])
-                            images_links.append(result['image_url'])
-                            cache_db.set(f'post_{posts['post_url']}', post,
-                                        ex=24 * 60 * 60 )
-                    else:
-                        continue
+            gen_posts, links = post_generation(chan, config)
+            results.extend(gen_posts)
+            images_links.extend(links)
 
         if results:
             num_dates = len(results)
@@ -382,37 +390,22 @@ async def select_channel_name(message: types.Message, state: FSMContext):
     await message.answer(f'Переписываем из канала {channel_name} последние новости ...',
                            reply_markup=ReplyKeyboardRemove())
 
-    results = []
-    images_links = []
     if channel_name.startswith('@'):
         channel_name = channel_name[1:]
-    channel_posts = get_channel_posts(channel_name, k=tgc_search_kwargs['max_post_per_channel'])
-    for channel_post in channel_posts:
+    results, images_links = post_generation(channel_name, config)
 
-        is_ads = post['is_ads']
-        if not is_ads:
-            post = channel_post['text']
-            emoji_reactions = channel_post['reactions']
-            ads_cond = find_ads(post)
-            if not ads_cond:
-                result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                        'is_selected_channels': True}
-                                        ,config=config)
+    if results:
+        num_dates = len(results)
+        dates = random_next_publication_in_current_hour(num_dates)
+        await state.update_data(images_links=deque(images_links))
+        await state.update_data(generated_posts=deque(results))
+        await state.update_data(post_datetime_publication=deque(dates))
 
-                results.append(result['generation'])
-                images_links.append(result['image_url'])
-                cache_db.set(f'post_{channel_post['post_url']}', post,
-                                ex=24 * 60 * 60 )
-
-
-
-    num_dates = len(results)
-    dates = random_next_publication_in_current_hour(num_dates)
-    await state.update_data(images_links=deque(images_links))
-    await state.update_data(generated_posts=deque(results))
-    await state.update_data(post_datetime_publication=deque(dates))
-
-    await show_next_post(message, state)
+        await show_next_post(message, state)
+    else:
+        await message.answer("Упс, вероятно все посты были дубликатами. Попробоуйте снова",
+                          reply_markup=ReplyKeyboardRemove())
+        await cmd_menu(message)
 
 
 @router.message(BotStates.theme_user_message_rag)
@@ -558,58 +551,21 @@ async def channel_look_up(channels: list, config: dict,
     '''
     Автоматический парс + генерация + публикация
     '''
-
-    posts_to_rewtire = []
+    results = []
     images_links = []
+    
     for chan in channels:
-        last_posts = get_channel_posts(chan, k=tgc_search_kwargs['max_post_per_channel'])
-        for posts in last_posts:
-            url = posts['post_url']
-            if cache_db.get(f'post_{url}'):
-                continue
-            else:
-                is_ads = posts['is_ads']
-                if not is_ads:
-                    post = posts['text']
-                    emoji_reactions = posts['reactions']
-                    is_video = posts['is_video']
-                    media_links = posts['media_links']
-                    dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
-                    ads_cond = find_ads(post)
-                    
-                    if not dublcate_cond and not ads_cond:
-                        if is_video and media_links:
-                            result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                            'is_selected_channels': True,
-                                            'media_links':media_links},config=config)
+        gen_posts, links = post_generation(chan, config)
+        results.extend(gen_posts)
+        images_links.extend(links)
 
-                            posts_to_rewtire.append(result['generation'])
-                            images_links.append(result['image_url'])
+            
 
-                            cache_db.set(f'post_{url}', post,
-                                        ex=24 * 60 * 60 )
-
-                        elif not is_video:
-                            result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                            'is_selected_channels': True,
-                                            'media_links':media_links},config=config)
-
-                            posts_to_rewtire.append(result['generation'])
-                            images_links.append(result['image_url'])
-
-                            cache_db.set(f'post_{url}', post,
-                                        ex=24 * 60 * 60 )
-                    
-                    
-                    else:
-                        continue
-                else:
-                    continue
-
-    if posts_to_rewtire:
+    if results:
+        logger.info(f'FINNALY! TOTAL RESULTS:  {len(results)}')
         state_key = StorageKey(bot_id=bot.id, user_id=user_id, chat_id=chat_id)
         state = FSMContext(storage=storage, key=state_key)
-        await state.update_data(generated_posts=deque(posts_to_rewtire))
+        await state.update_data(generated_posts=deque(results))
         await state.update_data(images_links=deque(images_links))
         await auto_send_posts(bot, CHANNEL_ID, state)
 
@@ -619,9 +575,9 @@ async def auto_rewrite_channels_post_handler(message: types.Message, storage: Ba
                                              bot: Bot,
                                              scheduler: AsyncIOScheduler):
     
-    '''
+    """
     Поиск из запроса пользователя ТГК
-    '''
+    """
     user_id = message.from_user.id
     chat_id = message.chat.id
 

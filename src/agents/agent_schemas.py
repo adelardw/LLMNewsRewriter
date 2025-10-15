@@ -15,6 +15,7 @@ class SourceAgentGraph(TypedDict):
     generation: str
     web_ctx: str
     search_query: str
+    is_meme: bool
     image_url: tp.Optional[str]
     image_num: int
     media_ctx: tp.Optional[str]

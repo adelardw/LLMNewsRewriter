@@ -150,8 +150,7 @@ def get_channel_posts(channel_name: str, k: int = 5,
         views_element = message_widget.find('span', class_='tgme_widget_message_views')
         views_element = parse_count(views_element.text)
         post_data['num_post_views'] = views_element
-        media_elements = message_widget.find_all('a', class_='tgme_widget_message_photo_wrap') or \
-                        message_widget.find_all('i', class_='tgme_widget_message_video_thumb')
+        media_elements = message_widget.find_all('a', class_='tgme_widget_message_photo_wrap')
 
         for media in media_elements:
             style = media.get('style', '')
