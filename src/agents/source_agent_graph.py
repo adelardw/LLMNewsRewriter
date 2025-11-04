@@ -11,7 +11,7 @@ from src.tools.config import endpoints
 
 from src.agents.prompts import (simillar_prompt, relevance_input_prompt,post_creator_prompt,
                                 rewiritter_prompt, relevance_prompt, image_selection_prompt,theme_prompt,
-                                image_description_prompt, meme_find_prompt,final_prompt ,
+                                image_description_prompt, meme_find_prompt,final_prompt,
                                 FORBIDDEN_ANSWER)
 
 from src.agents.agent_schemas import SourceAgentGraph
