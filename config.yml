@@ -3,7 +3,7 @@ metadata:
     reasoning: false
     temperature: 3e-2
   tgc_search_kwargs:
-    max_post_per_channel: 2
+    max_post_per_channel: 3
   web_retrieve_kwargs:
     max_search_results: 5
     n_chunks: 3

@@ -103,6 +103,7 @@ CORE_FINALIZER_PROMPT = """Ты исправляешь грамматическ�
 1. Сделать пост граммотически понятным, без ошибок, без лишних символов.
 Если уже пост понятный, не нуждается в исправлениии, просто перепиши его.
 2. Избавляться от дублирующей по смыслу информации.
+3. Выделять через * иноагентов экстремистов, если они есть в тексте.
 
 """
 
@@ -203,7 +204,8 @@ theme_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_THEME_PROMPT),
                                                   ("human","Пост: \n {post} \n")])
 
 final_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_FINALIZER_PROMPT),
-                                                  ("human","Пост: \n {post} \n")])
+                                                  ("human","Пост: \n {post} \n"\
+                                                   "Списки найденных иноагентов и/или экстремистов в посту: \n {forbidden} \n ")])
 
 def image_text_prompt(sys_prompt: Optional[str], input_dict: dict):
 
@@ -228,4 +230,4 @@ image_selection_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_IMAGE_S
 image_description_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_IMAGE_DESCRIPTION, x))
 
 
-meme_find_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_MEME_POST_FILTER, x))
+meme_find_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_MEME_POST_FILTER, x)) 
