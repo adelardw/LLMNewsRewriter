@@ -604,6 +604,7 @@ async def auto_rewrite_channels_post_handler(message: types.Message, storage: Ba
                 #minute='*/5',
                 minutes=5,
                 id=f"channel_lookup_{user_id}",
+                next_run_time=dt.datetime.now(),
                 kwargs={
                     'channels': channels_result,
                     'config': config,
