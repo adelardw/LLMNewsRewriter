@@ -42,6 +42,8 @@ image_description_agent = image_description_prompt | text_image_llm | StrOutputP
 
 meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 
+final = final_prompt | llm | StrOutputParser()
+
 ckpt = InMemorySaver()
 
 @measure_time
@@ -187,12 +189,15 @@ def creator_post_node(state):
 def rewriter_node(state):
     post = state['post']
     grade = state['grade']
+    forbidden = state['forbidden']
     if media_ctx:=state.get('media_ctx', None):
         generation = rewriter_agent.invoke({'post': post,'grade':grade,
-                                        'media_ctx':media_ctx})
+                                        'media_ctx':media_ctx,
+                                        "forbidden": f"\n{forbidden}\n"})
     else:
         generation = rewriter_agent.invoke({'post': post,'grade':grade,
-                                            'media_ctx':''})
+                                            'media_ctx':'',
+                                            "forbidden": f"\n{forbidden}\n"})
     # Сбрасываем состояния
     state['is_replyed_message'] = state['is_selected_channels'] = state['decision'] = False
     state['media_ctx'] = None
@@ -246,7 +251,11 @@ def select_image_to_post_node(state):
             logger.info(f'Случилась какая - то ошибка при выборе картинки к посту {e}')
     
     return {**state, 'image_url': None}
-    
+
+@measure_time
+def finalizer(state):
+    state['generation'] = final.invoke({"post": state['generation']})
+    return state
 
     
 workflow = StateGraph(SourceAgentGraph)
@@ -260,8 +269,7 @@ workflow.add_node("📱FindSimillarThemeNode", simillar_node)
 workflow.add_node("✈️🕸️🌏CreatePostFromWebSearchNode", creator_post_node)
 workflow.add_node("👀🕸️🌏MakeSearchQuery", select_search_query_node)
 workflow.add_node('👀🖼️SelectImage4Post', select_image_to_post_node)
-
-
+workflow.add_node('⁉️Finalizer', finalizer)
 
 
 workflow.add_conditional_edges(START,
@@ -302,6 +310,7 @@ workflow.add_edge("✈️🖼️MediaCtxNode","📄✍️RewriterNode")
 workflow.add_edge("📄✍️RewriterNode", "👀🕸️🌏MakeSearchQuery")
 
 workflow.add_edge("👀🕸️🌏MakeSearchQuery", "👀🖼️SelectImage4Post")
-workflow.add_edge("👀🖼️SelectImage4Post", END)
+workflow.add_edge("👀🖼️SelectImage4Post", "⁉️Finalizer")
+workflow.add_edge("⁉️Finalizer", END)
 
 graph = workflow.compile(debug=False, checkpointer=ckpt)

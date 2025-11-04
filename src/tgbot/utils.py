@@ -364,7 +364,78 @@ def search_in_forbidden(generated_post: str, extrim_data: dict, foreign_data: di
     return list(found_messages)
 
 
-extrim_file = 'src/data/extrim.txt'
-foreign_file = 'src/data/foreign.txt'
-extrim_dict = load_and_parse_forbidden_lists(extrim_file)
-foreign_dict = load_and_parse_forbidden_lists(foreign_file)
+def preproc_text_on_banned_org(text: str) -> str:
+    """
+    Обрабатывает текст, добавляя пометки о статусе организаций (иноагенты, запрещённые).
+
+    Args:
+        text (str): Исходный текст для обработки.
+
+    Returns:
+        str: Обработанный текст с пометками о статусе организаций.
+    """
+    base_path = os.path.join(os.path.curdir,"src", "data")
+    with open(os.path.join(base_path, "inoagents_preproc.txt"), encoding="utf-8") as file_inoagents:
+        inoagents = list(map(str.strip, file_inoagents.readlines()))
+
+    with open(os.path.join(base_path, "org_preproc.txt"), encoding="utf-8") as banned_org_file:
+        banned_orgs = list(map(str.strip, banned_org_file.readlines()))
+
+    for inoagent in inoagents:
+        find_inoagent = inoagent.replace("\n", "").strip()
+        text = re.sub(
+            rf"\b{find_inoagent}\b",
+            f"{inoagent} (организация признана Минюстом иностранным агентом)",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+    for org in banned_orgs:
+        find_org = org.replace("\n", "").strip()
+        text = re.sub(
+            rf"\b{find_org}\b",
+            f"{find_org} (организация, деятельность которой запрещена на территории Российской Федерации)",
+            text,
+            flags=re.IGNORECASE,
+        )
+    return text
+
+
+
+
+def find_on_banned_org(text: str) -> str:
+    """
+    Обрабатывает текст, добавляя пометки о статусе организаций (иноагенты, запрещённые).
+
+    Args:
+        text (str): Исходный текст для обработки.
+
+    Returns:
+        str: Обработанный текст с пометками о статусе организаций.
+    """
+    base_path = os.path.join(os.path.curdir,"src", "data")
+    with open(os.path.join(base_path, "inoagents_preproc.txt"), encoding="utf-8") as file_inoagents:
+        inoagents = list(map(str.strip, file_inoagents.readlines()))
+
+    with open(os.path.join(base_path, "org_preproc.txt"), encoding="utf-8") as banned_org_file:
+        banned_orgs = list(map(str.strip, banned_org_file.readlines()))
+
+    found_matches = {
+        "иноагенты": set(),
+        "экстримисты": set()
+    }
+
+
+    for name in inoagents:
+        pattern = rf'\b{re.escape(name)}\b'
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            found_matches["иноагенты"].add(name)
+ 
+    for name in banned_orgs:
+        pattern = rf'\b{re.escape(name)}\b'
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            found_matches["экстримисты"].add(name)
+    
+    forbidden_prompt = f"Иноагенты: {",".join(found_matches["иноагенты"])};"\
+                       f"Экстримисты: {",".join(found_matches["экстримисты"])};"
+    return forbidden_prompt

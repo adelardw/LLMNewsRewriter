@@ -25,8 +25,8 @@ from src.agents.prompts import FORBIDDEN_ANSWER
 from src.tgbot.bot_schemas import BotStates
 from src.tgbot.utils import (HFLCSSimTexts, split_long_message, random_next_publication_in_current_hour,
                              split_short_long_message,
-                            find_tg_channels_by_link, find_tg_channels, find_dublicates,find_ads,search_in_forbidden,
-                            extrim_dict, foreign_dict)
+                            find_tg_channels_by_link, find_tg_channels, find_dublicates,find_ads,
+                            find_on_banned_org)
 
 from src.tools.telegram_web_search import get_channel_posts, find_channel_names, get_channel_single_post_info
 from src.tools.config import tgc_search_kwargs
@@ -156,8 +156,10 @@ def post_generation(channel_name: str, config: dict):
             if not dublcate_cond and not ads_cond:
                 
                 if (is_video and media_links) or not is_video:
+                    
+                    forbidden = find_on_banned_org(post)
                     result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                    'is_selected_channels': True,
+                                    'is_selected_channels': True,"forbidden": forbidden,
                                     'media_links':media_links}
                                     ,config=config)
 
