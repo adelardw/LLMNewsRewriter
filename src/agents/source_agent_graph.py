@@ -27,6 +27,9 @@ llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
 text_image_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
                                model_name=TEXT_IMAGE_MODEL)
 
+finalizer_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
+                               model_name=TEXT_IMAGE_MODEL)
+
 relevance_query_agent = relevance_input_prompt | llm | StrOutputParser()
 news_classifier_agent = relevance_prompt | llm | StrOutputParser()
 simillar_agent = simillar_prompt | llm | StrOutputParser()
@@ -39,7 +42,7 @@ image_description_agent = image_description_prompt | text_image_llm | StrOutputP
 
 meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 
-final = final_prompt | llm | StrOutputParser()
+final = final_prompt | finalizer_llm | StrOutputParser()
 
 ckpt = InMemorySaver()
 
