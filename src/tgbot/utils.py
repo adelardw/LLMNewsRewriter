@@ -435,7 +435,12 @@ def find_on_banned_org(text: str) -> str:
         pattern = rf'\b{re.escape(name)}\b'
         if re.search(pattern, text, flags=re.IGNORECASE):
             found_matches["экстримисты"].add(name)
+
+    forbidden_prompt = ""
     
-    forbidden_prompt = f"Иноагенты: {",".join(found_matches["иноагенты"])};"\
-                       f"Экстримисты: {",".join(found_matches["экстримисты"])};"
+    if found_matches["иноагенты"]:
+        forbidden_prompt += f"Иноагенты: {",".join(found_matches["иноагенты"])};"
+    if found_matches["экстримисты"]:
+        forbidden_prompt += f"Экстримисты: {",".join(found_matches["экстримисты"])};"
+
     return forbidden_prompt

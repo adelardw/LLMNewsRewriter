@@ -158,8 +158,10 @@ def post_generation(channel_name: str, config: dict):
                 if (is_video and media_links) or not is_video:
                     
                     forbidden = find_on_banned_org(post)
-                    result = graph.invoke({'post': post,'emoji_reactions': emoji_reactions,
-                                    'is_selected_channels': True,"forbidden": forbidden,
+                    result = graph.invoke({'post': post + f"\n Списки найденных иноагентов и/или экстремистов в посту: \n {forbidden} \n " \
+                                                        if forbidden else '',
+                                           'emoji_reactions': emoji_reactions,
+                                    'is_selected_channels': True,
                                     'media_links':media_links}
                                     ,config=config)
 

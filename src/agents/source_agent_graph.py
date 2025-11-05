@@ -189,15 +189,12 @@ def creator_post_node(state):
 def rewriter_node(state):
     post = state['post']
     grade = state['grade']
-    forbidden = state['forbidden']
     if media_ctx:=state.get('media_ctx', None):
         generation = rewriter_agent.invoke({'post': post,'grade':grade,
-                                        'media_ctx':media_ctx,
-                                        "forbidden": f"\n{forbidden}\n"})
+                                        'media_ctx':media_ctx})
     else:
         generation = rewriter_agent.invoke({'post': post,'grade':grade,
-                                            'media_ctx':'',
-                                            "forbidden": f"\n{forbidden}\n"})
+                                            'media_ctx':''})
     # Сбрасываем состояния
     state['is_replyed_message'] = state['is_selected_channels'] = state['decision'] = False
     state['media_ctx'] = None
@@ -254,8 +251,7 @@ def select_image_to_post_node(state):
 
 @measure_time
 def finalizer(state):
-    state['generation'] = final.invoke({"post": state['generation'],
-                                        "forbidden": state['forbidden']})
+    state['generation'] = final.invoke({"post": state['generation']})
     return state
 
     

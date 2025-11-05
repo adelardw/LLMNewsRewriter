@@ -185,7 +185,6 @@ simillar_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_MAPPER_PROMP
 
 rewiritter_prompt = ChatPromptTemplate.from_messages([("system",CORE_REWRITTER_PROMPT),
                                                         ("human", "Найденный пост: \n {post} \n"
-                                                        "Списки найденных иноагентов и/или экстремистов в посту: \n {forbidden} \n "\
                                                         "Аггрегированная оценка от агента: \n {grade} \n"
                                                         "Описание изображения к посту (ТОЛЬКО КАК КОНТЕКСТ): \n {media_ctx} \n")])
     
@@ -203,8 +202,7 @@ theme_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_THEME_PROMPT),
                                                   ("human","Пост: \n {post} \n")])
 
 final_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_FINALIZER_PROMPT),
-                                                  ("human","Пост: \n {post} \n"\
-                                                   "Списки найденных иноагентов и/или экстремистов в посту: \n {forbidden} \n ")])
+                                                  ("human","Пост: \n {post} \n")])
 
 def image_text_prompt(sys_prompt: Optional[str], input_dict: dict):
 
