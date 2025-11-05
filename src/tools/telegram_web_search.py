@@ -5,7 +5,7 @@ import random
 # import sys #DEBUG
 # import os #DEBUG
 #sys.path.append(os.path.abspath(os.path.curdir)) #DEBUG
-from src.tools.config import user_agents, save_yaml
+from src.config import user_agents, save_yaml
 
 
 

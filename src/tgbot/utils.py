@@ -1,14 +1,13 @@
 from redis import StrictRedis
 import numpy as np
 import os
-from dotenv import load_dotenv
-load_dotenv()
 import pytz
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 import datetime as dt
 import typing as tp
 import random
 import re
+from src.config import EMBED_MODEL
 
 
 TELEGRAM_MAX_MESSAGE_LENGTH = 4096
@@ -229,17 +228,16 @@ def split_short_long_message(text: str, max_length_caption: int = TELEGRAM_MAX_M
             long_part = text[pos_space_num:]
             return short_part, long_part
         else:
-            return None # если порог выбрали неверно, слишком маленьким например, то проще картинку не вставлять,\
-                        # но это условие почти всегда не выполняется, так как порог фиксирован
+            return None
+                    
     else:
-        # если на второй части длина меньше
         return None
         
         
 
 def split_long_message(text: str, max_length: int = TELEGRAM_MAX_MESSAGE_LENGTH) -> list[str]:
     """
-    "Умно" разбивает длинное сообщение на несколько частей, не разрывая слова.
+    Разбивает длинное сообщение на несколько частей, не разрывая слова.
     Возвращает список сообщений (частей).
     """
     if len(text) <= max_length:
@@ -263,7 +261,7 @@ def split_long_message(text: str, max_length: int = TELEGRAM_MAX_MESSAGE_LENGTH)
 
 class HFLCSSimTexts:
 
-    embed_model: str = os.getenv('EMBED_MODEL','cointegrated/LaBSE-en-ru')
+    embed_model: str = EMBED_MODEL
     model_kwargs = {'device': 'cpu'}
     encode_kwargs = {'normalize_embeddings': True}
 
@@ -322,84 +320,6 @@ def parse_line_to_keywords(line: str) -> list[str]:
                 normalized_keywords.append(norm_part)
     
     return list(set(normalized_keywords))
-
-
-
-def load_and_parse_forbidden_lists(path: str) -> dict[str, list[str]]:
-    """
-    Читает файл и создает словарь { "оригинальная строка": ["ключевое слово 1", ...] }
-    """    
-    parsed_data = {}
-    with open(path, 'r', encoding='utf-8') as f:
-        for line in f:
-            original_line = line.strip()
-            if not original_line:
-                continue
-            keywords = parse_line_to_keywords(original_line)
-            if keywords:
-                parsed_data[original_line] = keywords
-    return parsed_data
-
-
-def search_in_forbidden(generated_post: str, extrim_data: dict, foreign_data: dict) -> list[str]:
-
-    normalized_post = normalize_text(generated_post)
-    found_messages = set() 
-    base_message_extrim = '{} - является экстремистом / экстремистской организацией'
-    base_message_foreign = '{} - является иноагентом'
-
-
-    for original_line, keywords in extrim_data.items():
-        for keyword in keywords:
-            if re.search(r'\b' + re.escape(keyword) + r'\b', normalized_post):
-                found_messages.add(base_message_extrim.format(original_line))
-                break 
-
-    for original_line, keywords in foreign_data.items():
-        for keyword in keywords:
-            if re.search(r'\b' + re.escape(keyword) + r'\b', normalized_post):
-                found_messages.add(base_message_foreign.format(original_line))
-                break
-
-    return list(found_messages)
-
-
-def preproc_text_on_banned_org(text: str) -> str:
-    """
-    Обрабатывает текст, добавляя пометки о статусе организаций (иноагенты, запрещённые).
-
-    Args:
-        text (str): Исходный текст для обработки.
-
-    Returns:
-        str: Обработанный текст с пометками о статусе организаций.
-    """
-    base_path = os.path.join(os.path.curdir,"src", "data")
-    with open(os.path.join(base_path, "inoagents_preproc.txt"), encoding="utf-8") as file_inoagents:
-        inoagents = list(map(str.strip, file_inoagents.readlines()))
-
-    with open(os.path.join(base_path, "org_preproc.txt"), encoding="utf-8") as banned_org_file:
-        banned_orgs = list(map(str.strip, banned_org_file.readlines()))
-
-    for inoagent in inoagents:
-        find_inoagent = inoagent.replace("\n", "").strip()
-        text = re.sub(
-            rf"\b{find_inoagent}\b",
-            f"{inoagent} (организация признана Минюстом иностранным агентом)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-    for org in banned_orgs:
-        find_org = org.replace("\n", "").strip()
-        text = re.sub(
-            rf"\b{find_org}\b",
-            f"{find_org} (организация, деятельность которой запрещена на территории Российской Федерации)",
-            text,
-            flags=re.IGNORECASE,
-        )
-    return text
-
 
 
 

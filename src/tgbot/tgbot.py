@@ -9,15 +9,12 @@ from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters import CommandStart, Command
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru import logger
-from dotenv import load_dotenv,find_dotenv
 from aiogram.fsm.storage.base import BaseStorage, StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 import typing as tp
 
 
 import datetime as dt
-import pytz
-import os
 
 from src.tgbot.cache import cache_db
 from src.agents.source_agent_graph import graph
@@ -29,17 +26,10 @@ from src.tgbot.utils import (HFLCSSimTexts, split_long_message, random_next_publ
                             find_on_banned_org)
 
 from src.tools.telegram_web_search import get_channel_posts, find_channel_names, get_channel_single_post_info
-from src.tools.config import tgc_search_kwargs
-
-import pytz
+from src.config import tgc_search_kwargs, TIMEZONE, CHANNEL_ID, ADMIN_ID, API_TOKEN
 
 
-load_dotenv(find_dotenv('.env'))
 
-API_TOKEN = os.getenv('TGBOTAPIKEY', None)
-ADMIN_ID = os.getenv('ADMINID', None)
-CHANNEL_ID = os.getenv('CHANNEL_ID')
-TIMEZONE = pytz.timezone(os.getenv('TIMEZONE'))
 
 embedder=HFLCSSimTexts()
 storage=MemoryStorage()
@@ -159,7 +149,7 @@ def post_generation(channel_name: str, config: dict):
                     
                     forbidden = find_on_banned_org(post)
                     result = graph.invoke({'post': post + f"\n Списки найденных иноагентов и/или экстремистов в посту: \n {forbidden} \n " \
-                                                        if forbidden else '',
+                                                        if forbidden else post,
                                            'emoji_reactions': emoji_reactions,
                                     'is_selected_channels': True,
                                     'media_links':media_links}
@@ -627,6 +617,6 @@ async def add_tgc_new_admin():
 
 async def main():
     logger.info('StartApp')
-    scheduler = AsyncIOScheduler(timezone=os.getenv('TIMEZONE'))
+    scheduler = AsyncIOScheduler(timezone=TIMEZONE)
     scheduler.start()
     await dp.start_polling(bot, scheduler=scheduler, storage=storage)

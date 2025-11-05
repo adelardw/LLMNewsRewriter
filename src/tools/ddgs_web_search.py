@@ -1,16 +1,13 @@
 from ddgs import DDGS
 import requests
 import random
-import os
-from dotenv import load_dotenv
-load_dotenv()
 from bs4 import BeautifulSoup
 from langchain_qdrant.qdrant import QdrantVectorStore,QdrantClient
 from langchain_core.documents import Document
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from loguru import logger
-from src.tools.config import web_retrieve_kwargs, embed_model_name, user_agents
+from src.config import web_retrieve_kwargs, embed_model_name, user_agents, EMBED_MODEL
 from src.tools.utils import is_url_safe
 
 
@@ -24,7 +21,7 @@ class DuckDuckGoOnlineRAG:
     forbidden_links = {'youtube','video','shorts','instagram','inst','meta','facebook','twitter',
                        'vk','t.me'}
     def __init__(self,
-                 embed_model: str = os.getenv('EMBED_MODEL','cointegrated/LaBSE-en-ru'),
+                 embed_model: str = EMBED_MODEL,
                  max_search_results: int = 5,
                  n_chunks: int = 3,
                  chunk_size: int = 650,

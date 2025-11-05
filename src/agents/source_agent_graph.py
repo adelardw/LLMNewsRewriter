@@ -1,12 +1,9 @@
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.graph import START, END, StateGraph
 from langgraph.checkpoint.memory import InMemorySaver
-import os 
-from dotenv import load_dotenv
-load_dotenv()
 from loguru import logger
 
-from src.tools.config import endpoints
+from src.config import endpoints, OPEN_ROUTER_API_KEY, TEXT_IMAGE_MODEL, TEXT_GENERATION_MODEL
 
 
 from src.agents.prompts import (simillar_prompt, relevance_input_prompt,post_creator_prompt,
@@ -19,16 +16,16 @@ from src.tools.ddgs_web_search import retriever
 from src.tgbot.cache import cache_db
 from src.agents.utils import measure_time, redis_update_links
 from src.tools.google_web_search import get_google_image_links
-from src.llms.open_router import OpenRouterChat
+from src.open_router import OpenRouterChat
 #import datetime as dt
 #import pytz
 
 
-llm = OpenRouterChat(api_key=os.getenv('OPEN_ROUTER_API_KEY'),
-                     model_name=os.getenv('TEXT_GENERATION_MODEL'))
+llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
+                     model_name=TEXT_GENERATION_MODEL)
 
-text_image_llm = OpenRouterChat(api_key=os.getenv('OPEN_ROUTER_API_KEY'),
-                               model_name=os.getenv('TEXT_IMAGE_MODEL'))
+text_image_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
+                               model_name=TEXT_IMAGE_MODEL)
 
 relevance_query_agent = relevance_input_prompt | llm | StrOutputParser()
 news_classifier_agent = relevance_prompt | llm | StrOutputParser()
@@ -216,17 +213,11 @@ def select_image_to_post_node(state):
     search_query = state['search_query']
     generated_post = state['generation']
     
-    #cached_links = redis_img_find(cache_db)
-    #tz = os.getenv('TIMEZONE')  
-    #now = dt.datetime.now(tz=pytz.timezone(tz))
-    #delta = dt.timedelta(7)
-    #last_date = now = delta
 
     filters = {'date': 'pastweek'}
 
     finded_links =  get_google_image_links(search_query, max_num=5, filters = filters)
-    #finded_links = links_filter(finded_links)
-    #finded_links += cached_links
+
 
     if finded_links:        
         try:

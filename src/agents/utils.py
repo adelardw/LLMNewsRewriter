@@ -1,6 +1,4 @@
 from time import perf_counter
-import re
-import os
 import uuid
 import redis
 import requests

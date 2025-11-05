@@ -1,5 +1,5 @@
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+import os
 import logging
 
 logging.getLogger('icrawler').setLevel(logging.WARNING)
@@ -9,8 +9,8 @@ from icrawler.builtin import GoogleImageCrawler
 from icrawler import ImageDownloader
 import requests
 from loguru import logger
-from src.tools.config import CX_ID, GOOGLE_API_KEY
-
+from src.config import CX_ID, GOOGLE_API_KEY
+from src.tools.utils import get_links_for_images
 
 def search_img(query: str, num: int = 10):
     try:
@@ -40,10 +40,6 @@ def search_img(query: str, num: int = 10):
             logger.info(f"Произошла ошибка HTTP: {e}")
             return []
         
-
-
-
-
 
 class LinkCollectorGoogleImageCrawler(GoogleImageCrawler):
     def __init__(self, *args, **kwargs):
@@ -94,3 +90,23 @@ def get_google_image_links(keyword, max_num=5, filters=None) -> list[str]:
     )
     return crawler.downloader.get_links()
 
+
+def get_google_image_loads(keyword:str, max_num: int =5, filters=None) -> list[str]:
+    """Функция для получения списка ссылок на изображения"""
+    if not os.path.exists('./tmp'):
+        os.mkdir('./tmp')
+    
+    save_directory = f'.tmp/{keyword.replace(' ','_')}'
+    if not os.path.exists(save_directory):
+        os.mkdir(save_directory)
+
+    crawler = GoogleImageCrawler(storage={'root_dir': save_directory})
+
+    crawler.crawl(
+        keyword=keyword,
+        max_num=max_num,
+        language='ru',
+        filters=filters
+    )
+    links = get_links_for_images(save_directory)
+    return links

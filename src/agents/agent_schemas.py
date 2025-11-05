@@ -20,4 +20,3 @@ class SourceAgentGraph(TypedDict):
     image_num: int
     media_ctx: tp.Optional[str]
     media_links: list[str]
-    forbidden: str
