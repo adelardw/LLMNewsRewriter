@@ -312,8 +312,6 @@ def clean_text(text):
     text = re.sub(r'@[A-Za-z0-9_]+', ' ', text)
     text = re.sub(r'<[^>]+>', ' ', text)
     text = re.sub(r'\b\+?\d[\d\s()-]{7,}\d\b', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
-    text = text.strip()
     
     return text
 

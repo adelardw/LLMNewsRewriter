@@ -9,7 +9,7 @@ from icrawler.builtin import GoogleImageCrawler
 from icrawler import ImageDownloader
 import requests
 from loguru import logger
-from src.config import CX_ID, GOOGLE_API_KEY
+from src.config import CX_ID, GOOGLE_API_KEY, TEMPLATE_PATH
 from src.tools.utils import get_links_for_images
 
 def search_img(query: str, num: int = 10):
@@ -91,12 +91,14 @@ def get_google_image_links(keyword, max_num=5, filters=None) -> list[str]:
     return crawler.downloader.get_links()
 
 
-def get_google_image_loads(keyword:str, max_num: int =5, filters=None) -> list[str]:
+def get_google_image_loads(keyword:str, max_num: int =5,
+                           base_path: str = TEMPLATE_PATH,
+                           filters=None) -> list[str]:
     """Функция для получения списка ссылок на изображения"""
-    if not os.path.exists('./tmp'):
-        os.mkdir('./tmp')
+    if not os.path.exists(base_path):
+        os.mkdir(base_path)
     
-    save_directory = f'.tmp/{keyword.replace(' ','_')}'
+    save_directory = os.path.join(base_path, keyword.replace(' ','_'))
     if not os.path.exists(save_directory):
         os.mkdir(save_directory)
 

@@ -1,7 +1,8 @@
 import asyncio
+import base64
 from collections import deque
 from aiogram import Bot
-from aiogram.types import KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import KeyboardButton, ReplyKeyboardRemove, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram import F
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
@@ -61,10 +62,41 @@ async def send_post_to_channel(bot: Bot, channel_id: str, post_text: str, image_
     """
     try:
         message_chunks, need_photo_to_msg_chunk = prepare_messages(post_text)
+
+        is_valid_url = False
+        is_data_uri = False
+        
+        if image_link:
+            if image_link.startswith(('http://', 'https://')):
+                is_valid_url = True
+            elif image_link.startswith('data:image/'):
+                is_data_uri = True
+
         for i, chunk in enumerate(message_chunks):
             if i == 0:
-                if image_link and need_photo_to_msg_chunk:
-                    await bot.send_photo(chat_id=channel_id, photo=image_link, caption=chunk)
+                if is_valid_url and need_photo_to_msg_chunk:
+                    try:
+                        await bot.send_photo(chat_id=channel_id, photo=image_link, caption=chunk)
+                    except Exception as e:
+                        logger.error(f"Не удалось отправить фото по URL: {e}. Отправка текстом.")
+                        await bot.send_message(chat_id=channel_id, text=chunk)
+                
+                elif is_data_uri and need_photo_to_msg_chunk:
+                    try:
+
+                        header, encoded_data = image_link.split(',', 1)
+                        mime_type = header.split(';')[0].split('/')[-1] 
+                        
+                        image_bytes = base64.b64decode(encoded_data)
+                        
+                        buffered_file = BufferedInputFile(image_bytes, filename=f"image.{mime_type}")
+                        
+                        await bot.send_photo(chat_id=channel_id, photo=buffered_file, caption=chunk)
+                    except Exception as e:
+                        logger.error(f"Не удалось отправить Data URI: {e}. Отправка текстом.")
+                        await bot.send_message(chat_id=channel_id, text=chunk)
+                
+                # Случай 3: Нет картинки или ссылка/URI невалидны
                 else:
                     await bot.send_message(chat_id=channel_id, text=chunk)    
             else:        
@@ -90,6 +122,7 @@ async def auto_send_posts(bot: Bot, channel_id: int | str, state: FSMContext):
 async def show_next_post(message: types.Message, state: FSMContext):
     """
     Показывает следующий пост из очереди. Эта функция теперь центральная.
+    Также обновлена для поддержки URL и Data URI.
     """
     data = await state.get_data()
     generated_posts = data.get('generated_posts', deque())
@@ -97,6 +130,7 @@ async def show_next_post(message: types.Message, state: FSMContext):
 
     if generated_posts:
         post_to_show = generated_posts[0]
+        image_link = None # Инициализируем
         if images_links:
             image_link = images_links[0]
 
@@ -105,13 +139,41 @@ async def show_next_post(message: types.Message, state: FSMContext):
                     KeyboardButton(text="❌ Отвергнуть"))
         
         message_chunks, need_photo_to_msg_chunk = prepare_messages(post_to_show)
+        is_valid_url = False
+        is_data_uri = False
+        
+        if image_link:
+            if image_link.startswith(('http://', 'https://')):
+                is_valid_url = True
+            elif image_link.startswith('data:image/'):
+                is_data_uri = True
+
         for i, chunk in enumerate(message_chunks):
             is_last_chunk = (i == len(message_chunks) - 1)
             reply_markup = builder.as_markup(resize_keyboard=True, one_time_keyboard=True) if is_last_chunk else None
+            
             if i == 0:
-                if image_link and need_photo_to_msg_chunk:
-                    await message.answer_photo(photo=image_link,
-                                           caption=chunk, reply_markup=reply_markup)
+                if is_valid_url and need_photo_to_msg_chunk:
+                    try:
+                        await message.answer_photo(photo=image_link,
+                                                   caption=chunk, reply_markup=reply_markup)
+                    except Exception as e:
+                        logger.error(f"Не удалось показать фото (URL) в превью: {e}. Показ текстом.")
+                        await message.answer(text=chunk, reply_markup=reply_markup)
+                
+                elif is_data_uri and need_photo_to_msg_chunk:
+                    try:
+                        header, encoded_data = image_link.split(',', 1)
+                        mime_type = header.split(';')[0].split('/')[-1]
+                        image_bytes = base64.b64decode(encoded_data)
+                        buffered_file = BufferedInputFile(image_bytes, filename=f"image.{mime_type}")
+                        
+                        await message.answer_photo(photo=buffered_file,
+                                                   caption=chunk, reply_markup=reply_markup)
+                    except Exception as e:
+                        logger.error(f"Не удалось показать фото (Data URI) в превью: {e}. Показ текстом.")
+                        await message.answer(text=chunk, reply_markup=reply_markup)
+
                 else:
                     await message.answer(text=chunk, reply_markup=reply_markup)    
             else:        
@@ -148,8 +210,10 @@ def post_generation(channel_name: str, config: dict):
                 if (is_video and media_links) or not is_video:
                     
                     forbidden = find_on_banned_org(post)
-                    result = graph.invoke({'post': post + f"\n Списки найденных иноагентов и/или экстремистов в посту: \n {forbidden} \n " \
-                                                        if forbidden else post,
+                    add_message = f"\n Списки найденных иноагентов и/или экстремистов в посту: \n {forbidden} \n " \
+                                  if forbidden else ''
+
+                    result = graph.invoke({'post': post + add_message,
                                            'emoji_reactions': emoji_reactions,
                                     'is_selected_channels': True,
                                     'media_links':media_links}
@@ -157,7 +221,7 @@ def post_generation(channel_name: str, config: dict):
 
                     if result['generation']:
                         logger.info(f'[SUCESSES]: generating post')
-                        results.append(result['generation'])
+                        results.append(clean_text(result['generation']))
                         images_links.append(result['image_url'])
 
                     cache_db.set(f'post_{posts['post_url']}', post,

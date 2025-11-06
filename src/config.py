@@ -25,6 +25,9 @@ CHANNEL_ID = os.getenv('CHANNEL_ID')
 TIMEZONE = pytz.timezone(os.getenv('TIMEZONE'))
 EMBED_MODEL = os.getenv('EMBED_MODEL','cointegrated/LaBSE-en-ru')
 
+TEMPLATE_PATH = "./tmp"
+TMP_CACHED_DEPTH = 50
+
 embed_model_name = os.getenv('EMBED_MODEL', 'cointegrated/LaBSE-en-ru')
 with open(CONFIG_PATH, 'r') as file:
 

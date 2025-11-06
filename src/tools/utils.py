@@ -1,6 +1,6 @@
 from urllib.parse import urlparse
 import shutil
-import subprocess
+from src.config import TEMPLATE_PATH, TMP_CACHED_DEPTH
 import re
 import tldextract
 import os
@@ -67,7 +67,7 @@ def get_links_for_images(image_path: str):
     
     return links
 
-def rm_img_folders(base_path: str = './tmp', cached_depth: str = 60):
+def rm_img_folders(base_path: str = TEMPLATE_PATH, cached_depth: str = TMP_CACHED_DEPTH):
     if os.path.exists(base_path) and os.path.isdir(base_path):
         if len(folders:=os.listdir(base_path)) >= cached_depth:
             for fld in folders:
