@@ -302,24 +302,20 @@ def normalize_text(text: str) -> str:
 
 
 
-def parse_line_to_keywords(line: str) -> list[str]:
-
-    keywords = re.findall(r'«([^»]+)»|\"([^\"]+)\"', line)
-    flat_keywords = [item for tpl in keywords for item in tpl if item]
-
-    if not flat_keywords:
-        return []
-
-   
-    normalized_keywords = []
-    for keyword in flat_keywords:
-        parts = re.split(r'[,/]', keyword)
-        for part in parts:
-            norm_part = normalize_text(part)
-            if len(norm_part) > 2:
-                normalized_keywords.append(norm_part)
+def clean_text(text):
+    """
+    Очищает текст от URL, email, @упоминаний, HTML-тегов,
+    телефонных номеров и лишних пробелов.
+    """
+    text = re.sub(r'\b(?:https?://|www\.)\S+\b', ' ', text)
+    text = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', ' ', text)
+    text = re.sub(r'@[A-Za-z0-9_]+', ' ', text)
+    text = re.sub(r'<[^>]+>', ' ', text)
+    text = re.sub(r'\b\+?\d[\d\s()-]{7,}\d\b', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    text = text.strip()
     
-    return list(set(normalized_keywords))
+    return text
 
 
 

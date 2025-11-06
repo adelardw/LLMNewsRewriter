@@ -23,7 +23,7 @@ from src.tgbot.bot_schemas import BotStates
 from src.tgbot.utils import (HFLCSSimTexts, split_long_message, random_next_publication_in_current_hour,
                              split_short_long_message,
                             find_tg_channels_by_link, find_tg_channels, find_dublicates,find_ads,
-                            find_on_banned_org)
+                            find_on_banned_org, clean_text)
 
 from src.tools.telegram_web_search import get_channel_posts, find_channel_names, get_channel_single_post_info
 from src.config import tgc_search_kwargs, TIMEZONE, CHANNEL_ID, ADMIN_ID, API_TOKEN
@@ -133,7 +133,7 @@ def post_generation(channel_name: str, config: dict):
         is_ads = posts['is_ads']
         url = posts['post_url']
         if cache_db.get(f'post_{url}'):
-            logger.info(f'SKIP BECAUSE IN CACHE')
+            logger.info(f'[SKIP]: in cache')
             continue
         if not is_ads:
             post = posts['text']
@@ -156,17 +156,17 @@ def post_generation(channel_name: str, config: dict):
                                     ,config=config)
 
                     if result['generation']:
-                        logger.info(f'Sucessfull generation')
+                        logger.info(f'[SUCESSES]: generating post')
                         results.append(result['generation'])
                         images_links.append(result['image_url'])
 
                     cache_db.set(f'post_{posts['post_url']}', post,
                                     ex=24 * 60 * 60 )
             else:
-                logger.info(f'SKIP BECAUSE: DUBLICATE ({dublcate_cond}) or ADS ({ads_cond})')
+                logger.info(f'[SKIP]: dublicate or ads')
                 continue
         else:
-            logger.info(f'SKIP BECAUSE ADS (erid)')
+            logger.info(f'[SKIP]: ads')
             continue
         
     return results, images_links
