@@ -219,8 +219,7 @@ theme_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_THEME_PROMPT),
                                                   ("human","Пост: \n {post} \n")])
 
 final_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_FINALIZER_PROMPT),
-                                                  ("human","Пост: \n {post} \n"\
-                                                           "Есть ли в посту иноагенты или экстремисты: {forbidden}")])
+                                                  ("human","Пост: \n {post} \n")])
 
 def image_text_prompt(sys_prompt: Optional[str], input_dict: dict):
 

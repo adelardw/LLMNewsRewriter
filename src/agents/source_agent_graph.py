@@ -248,8 +248,7 @@ def select_image_to_post_node(state):
 
 @measure_time
 def finalizer(state):
-    state['generation'] = final.invoke({"post": state['generation'],
-                                        "forbidden": state["forbidden"]})
+    state['generation'] = final.invoke({"post": state['generation']})
     return state
 
     

@@ -216,9 +216,7 @@ def post_generation(channel_name: str, config: dict):
                     result = graph.invoke({'post': post + add_message,
                                            'emoji_reactions': emoji_reactions,
                                     'is_selected_channels': True,
-                                    'media_links':media_links,
-                                    "forbidden": "ДА, в посте есть иноагенты или экстремисты" if forbidden else \
-                                                 "НЕТ, в посту нет иноагентов или экстремистов"}
+                                    'media_links':media_links}
                                     ,config=config)
 
                     if result['generation']:
