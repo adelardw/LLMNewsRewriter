@@ -210,7 +210,7 @@ def post_generation(channel_name: str, config: dict):
                 if (is_video and media_links) or not is_video:
                     
                     forbidden = find_on_banned_org(post)
-                    add_message = f"\n Списки найденных иноагентов и/или экстремистов в посту: \n {forbidden} \n " \
+                    add_message = f"\n СПИСКИ НАЙДЕННЫХ ИНОАГЕНТОВ ИЛИ ЭКСТРЕМИСТОВ В ПОСТУ (ОБЯЗАТЕЛЬНО УПОМЯНУТЬ ОБ ЭТОМ): \n {forbidden} \n " \
                                   if forbidden else ''
 
                     result = graph.invoke({'post': post + add_message,
