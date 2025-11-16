@@ -22,6 +22,8 @@ TEXT_IMAGE_MODEL = os.getenv('TEXT_IMAGE_MODEL')
 API_TOKEN = os.getenv('TGBOTAPIKEY', None)
 ADMIN_ID = os.getenv('ADMINID', None)
 CHANNEL_ID = os.getenv('CHANNEL_ID')
+
+CHANNELS_IDS = os.getenv('CHANNELS_IDS').split(',')
 TIMEZONE = pytz.timezone(os.getenv('TIMEZONE'))
 EMBED_MODEL = os.getenv('EMBED_MODEL','cointegrated/LaBSE-en-ru')
 

@@ -1,4 +1,6 @@
 from time import perf_counter
+import os
+import re
 import uuid
 import redis
 import requests
@@ -58,3 +60,39 @@ def redis_update_links(links: list[str], redis_cache: redis.StrictRedis,
     for link in links:
         redis_cache.set(name=f'img_link_{uuid.uuid4().hex}', value=link,
                         ex=ttl)
+
+def preproc_text_on_banned_org(text: str) -> str:
+    """
+    Обрабатывает текст, добавляя пометки о статусе организаций (иноагенты, запрещённые).
+
+    Args:
+        text (str): Исходный текст для обработки.
+
+    Returns:
+        str: Обработанный текст с пометками о статусе организаций.
+    """
+    base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "prep")
+    with open(os.path.join(base_path, "inoagents_preproc.txt"), encoding="utf-8") as file_inoagents:
+        inoagents = list(map(str.strip, file_inoagents.readlines()))
+
+    with open(os.path.join(base_path, "org_preproc.txt"), encoding="utf-8") as banned_org_file:
+        banned_orgs = list(map(str.strip, banned_org_file.readlines()))
+
+    for inoagent in inoagents:
+        find_inoagent = inoagent.replace("\n", "").strip()
+        text = re.sub(
+            rf"\b{find_inoagent}\b",
+            f"{inoagent} (организация признана Минюстом иностранным агентом)",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+    for org in banned_orgs:
+        find_org = org.replace("\n", "").strip()
+        text = re.sub(
+            rf"\b{find_org}\b",
+            f"{find_org} (организация, деятельность которой запрещена на территории Российской Федерации)",
+            text,
+            flags=re.IGNORECASE,
+        )
+    return text

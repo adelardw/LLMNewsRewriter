@@ -9,3 +9,4 @@ class BotStates(StatesGroup):
     theme_user_message = State()
     post_confirmation = State()
     auto_rewrite_follow_channel_post = State()
+    set_channel = State()

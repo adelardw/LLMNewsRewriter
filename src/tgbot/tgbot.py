@@ -27,7 +27,7 @@ from src.tgbot.utils import (HFLCSSimTexts, split_long_message, random_next_publ
                             find_on_banned_org, clean_text)
 
 from src.tools.telegram_web_search import get_channel_posts, find_channel_names, get_channel_single_post_info
-from src.config import tgc_search_kwargs, TIMEZONE, CHANNEL_ID, ADMIN_ID, API_TOKEN
+from src.config import tgc_search_kwargs, TIMEZONE, CHANNEL_ID, ADMIN_ID, API_TOKEN, CHANNELS_IDS
 
 
 
@@ -246,6 +246,7 @@ async def cmd_menu(message: types.Message):
     builder.row(KeyboardButton(text="✍️ Переписать пост"))
     builder.row(KeyboardButton(text="✍️✈️ Переписать посты по заданным каналам"))
     builder.row(KeyboardButton(text="✍️🕸️🌏 WebRag"))
+    builder.row(KeyboardButton(text="🤔 Выбрать каналы для запуска агента"))
     builder.row(KeyboardButton(text="✍️✈️ (AUTOMATIC) Переписать посты по заданным каналам"))
     builder.row(KeyboardButton(text="🤖💬 Получить последнюю генерацию поста"))
     builder.row(KeyboardButton(text="Develop: Получить аналитику по каналу"))
@@ -258,6 +259,14 @@ async def cmd_menu(message: types.Message):
         "Выберите действие:",
         reply_markup=builder.as_markup(resize_keyboard=True)
     )
+
+# @router.message(F.text == '🤔 Выбрать каналы для запуска агента')
+# async def choice_channels(message: types.Message, state: FSMContext):
+#     await state.set_state(BotStates.set_channel)
+#     builder = ReplyKeyboardBuilder()
+#     for ids in CHANNELS_IDS:
+#         builder.row(KeyboardButton(text="➕ Добавить нового админа в ТГК"))
+# 
 
 @router.message(F.text == '✍️♾️ Найти ТГК и переписать посты')
 async def write_post_theme_multiple(message: types.Message, state: FSMContext):

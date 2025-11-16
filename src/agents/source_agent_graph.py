@@ -14,7 +14,7 @@ from src.agents.prompts import (simillar_prompt, relevance_input_prompt,post_cre
 from src.agents.agent_schemas import SourceAgentGraph
 from src.tools.ddgs_web_search import retriever
 from src.tgbot.cache import cache_db
-from src.agents.utils import measure_time, redis_update_links
+from src.agents.utils import measure_time, redis_update_links, preproc_text_on_banned_org
 from src.tools.google_web_search import get_google_image_links, get_google_image_loads
 from src.tools.utils import rm_img_folders
 from src.open_router import OpenRouterChat
@@ -220,9 +220,9 @@ def select_image_to_post_node(state):
 
     filters = {'date': 'pastweek'}
 
-    #finded_links =  get_google_image_links(search_query, max_num=5, filters = filters)
-    finded_links =  get_google_image_loads(keyword=search_query, max_num=5, filters = filters)
-    rm_img_folders()
+    finded_links =  get_google_image_links(search_query, max_num=5, filters = filters)
+    #finded_links =  get_google_image_loads(keyword=search_query, max_num=5, filters = filters)
+    #rm_img_folders()
 
 
     if finded_links:        
@@ -248,6 +248,7 @@ def select_image_to_post_node(state):
 
 @measure_time
 def finalizer(state):
+    state['generation'] = preproc_text_on_banned_org(state['generation'])
     state['generation'] = final.invoke({"post": state['generation']})
     return state
 
