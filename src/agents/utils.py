@@ -71,7 +71,7 @@ def preproc_text_on_banned_org(text: str) -> str:
     Returns:
         str: Обработанный текст с пометками о статусе организаций.
     """
-    base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "prep")
+    base_path = os.path.join(os.path.curdir,"src", "data")
     with open(os.path.join(base_path, "inoagents_preproc.txt"), encoding="utf-8") as file_inoagents:
         inoagents = list(map(str.strip, file_inoagents.readlines()))
 
