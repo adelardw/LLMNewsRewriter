@@ -1,12 +1,15 @@
 from googleapiclient.discovery import build
 import os
 import logging
+from ddgs import DDGS
+
 
 logging.getLogger('icrawler').setLevel(logging.WARNING)
 logging.getLogger('requests').setLevel(logging.WARNING)
 
 from icrawler.builtin import GoogleImageCrawler
 from icrawler import ImageDownloader
+from bing_image_downloader import downloader
 import requests
 from loguru import logger
 from src.config import CX_ID, GOOGLE_API_KEY, TEMPLATE_PATH
@@ -107,8 +110,87 @@ def get_google_image_loads(keyword:str, max_num: int =5,
     crawler.crawl(
         keyword=keyword,
         max_num=max_num,
-        language='ru',
+        #language='ru',
         filters=filters
     )
     links = get_links_for_images(save_directory)
     return links
+
+
+def get_bing_image_loads(keyword: str,
+                         limit: int = 5,
+                         base_path: str = TEMPLATE_PATH):
+    
+    if not os.path.exists(base_path):
+        os.mkdir(base_path)
+    
+    save_directory = os.path.join(base_path, keyword)
+    if not os.path.exists(save_directory):
+        os.mkdir(save_directory)
+        
+    downloader.download(
+        keyword,
+        limit=limit,
+        output_dir=base_path,
+        adult_filter_off=True,
+        force_replace=False,
+        timeout=60,
+        verbose=True)
+
+        
+    links = get_links_for_images(save_directory)
+    return links
+
+
+
+def get_ddgs_image_loads(query, max_images=10,
+                         base_path: str = TEMPLATE_PATH,):
+    
+    if not os.path.exists(base_path):
+        os.mkdir(base_path)
+    
+    save_directory = os.path.join(base_path, query.replace(' ','_'))
+    if not os.path.exists(save_directory):
+        os.mkdir(save_directory)
+
+    with DDGS() as loader:
+        results = loader.images(
+            query=query,
+            region='ru',
+            timelimit="w",
+            max_results=max_images
+        )
+
+        count = 0
+        for i, res in enumerate(results):
+            image_url = res.get('image')
+
+            if not image_url:
+                continue
+
+            try:
+                logger.info(f"Скачивание {count+1}: {image_url[:50]}...")
+ 
+                response = requests.get(image_url, timeout=10)
+
+                if response.status_code == 200:
+                    ext = os.path.splitext(image_url)[1]
+                    if len(ext) < 3 or len(ext) > 5:
+                        ext = '.jpg' # Дефолтное расширение
+
+                    filename = f"img_{count + 1}{ext}"
+                    full_path = os.path.join(save_directory, filename)
+
+                    with open(full_path, 'wb') as f:
+                        f.write(response.content)
+
+                    count += 1
+                else:
+                    logger.error(f"❌ Ошибка доступа (код {response.status_code})")
+
+            except Exception as e:
+                logger.error(f"❌ Ошибка при скачивании: {e}")
+        
+    links = get_links_for_images(save_directory)
+    return links
+
