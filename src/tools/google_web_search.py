@@ -153,44 +153,48 @@ def get_ddgs_image_loads(query, max_images=10,
     if not os.path.exists(save_directory):
         os.mkdir(save_directory)
 
-    with DDGS() as loader:
-        results = loader.images(
-            query=query,
-            region='ru',
-            timelimit="w",
-            max_results=max_images
-        )
+    try:
+        with DDGS() as loader:
+            results = loader.images(
+                query=query,
+                region='ru',
+                timelimit="w",
+                max_results=max_images
+            )
 
-        count = 0
-        for i, res in enumerate(results):
-            image_url = res.get('image')
+            count = 0
+            for i, res in enumerate(results):
+                image_url = res.get('image')
 
-            if not image_url:
-                continue
+                if not image_url:
+                    continue
 
-            try:
-                logger.info(f"Скачивание {count+1}: {image_url[:50]}...")
- 
-                response = requests.get(image_url, timeout=10)
+                try:
+                    logger.info(f"Скачивание {count+1}: {image_url[:50]}...")
+    
+                    response = requests.get(image_url, timeout=10)
 
-                if response.status_code == 200:
-                    ext = os.path.splitext(image_url)[1]
-                    if len(ext) < 3 or len(ext) > 5:
-                        ext = '.jpg' # Дефолтное расширение
+                    if response.status_code == 200:
+                        ext = os.path.splitext(image_url)[1]
+                        if len(ext) < 3 or len(ext) > 5:
+                            ext = '.jpg' # Дефолтное расширение
 
-                    filename = f"img_{count + 1}{ext}"
-                    full_path = os.path.join(save_directory, filename)
+                        filename = f"img_{count + 1}{ext}"
+                        full_path = os.path.join(save_directory, filename)
 
-                    with open(full_path, 'wb') as f:
-                        f.write(response.content)
+                        with open(full_path, 'wb') as f:
+                            f.write(response.content)
 
-                    count += 1
-                else:
-                    logger.error(f"❌ Ошибка доступа (код {response.status_code})")
+                        count += 1
+                    else:
+                        logger.error(f"❌ Ошибка доступа (код {response.status_code})")
 
-            except Exception as e:
-                logger.error(f"❌ Ошибка при скачивании: {e}")
-        
-    links = get_links_for_images(save_directory)
-    return links
+                except Exception as e:
+                    logger.error(f"❌ Ошибка при скачивании: {e}")
+
+        links = get_links_for_images(save_directory)
+        return links
+    except Exception as e:
+        logger.error(f"❌ Ошибка при скачивании: {e}")
+        return []
 

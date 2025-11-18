@@ -217,12 +217,6 @@ def select_image_to_post_node(state):
     search_query = state['search_query']
     generated_post = state['generation']
     
-
-    #filters = {'date': 'pastweek'}
-
-    #finded_links =  get_google_image_links(search_query, max_num=5, filters = filters)
-    #finded_links =  get_google_image_loads(keyword=search_query, max_num=5, filters = filters)
-    #rm_img_folders()
     finded_links = get_ddgs_image_loads(search_query, max_images=5)
     rm_img_folders()
 
