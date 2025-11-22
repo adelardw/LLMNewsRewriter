@@ -338,7 +338,7 @@ async def set_sources_and_start_scheduler(message: types.Message, state: FSMCont
         scheduler.add_job(
             channel_look_up,
             trigger='interval',
-            minutes=30, # Интервал проверки
+            minutes=5, # Интервал проверки
             id=job_id,
             next_run_time=dt.datetime.now() + dt.timedelta(seconds=5), # Первый запуск почти сразу
             kwargs={
