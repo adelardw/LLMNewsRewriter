@@ -27,7 +27,7 @@ from src.tgbot.utils import (HFLCSSimTexts, split_long_message, random_next_publ
                             find_on_banned_org, clean_text)
 
 from src.tools.telegram_web_search import get_channel_posts, find_channel_names, get_channel_single_post_info
-from src.config import tgc_search_kwargs, TIMEZONE, CHANNEL_ID, ADMIN_ID, API_TOKEN, CHANNELS_IDS
+from src.config import tgc_search_kwargs, news_word_threshold, TIMEZONE, CHANNEL_ID, ADMIN_ID, API_TOKEN, CHANNELS_IDS
 
 
 
@@ -199,39 +199,38 @@ def post_generation(channel_name: str, config: dict):
             continue
         if not is_ads:
             post = posts['text']
+            if not isinstance(post, str):
+                continue
+
+            post = post if post and len(post.split()) >= news_word_threshold else None
             emoji_reactions = posts['reactions']
+
             is_video = posts['is_video']
             media_links = posts['media_links']
 
-            dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
-            ads_cond = find_ads(post)
-            if not dublcate_cond and not ads_cond:
-                
-                if (is_video and media_links) or not is_video:
-                    
-                    forbidden = find_on_banned_org(post)
-                    add_message = f"\n СПИСКИ НАЙДЕННЫХ ИНОАГЕНТОВ ИЛИ ЭКСТРЕМИСТОВ В ПОСТУ (ОБЯЗАТЕЛЬНО УПОМЯНУТЬ ОБ ЭТОМ): \n {forbidden} \n " \
-                                  if forbidden else ''
+            if post:
+                dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
+                ads_cond = find_ads(post)
+                if not dublcate_cond and not ads_cond:
 
-                    result = graph.invoke({'post': post + add_message,
-                                           'emoji_reactions': emoji_reactions,
-                                    'is_selected_channels': True,
-                                    'media_links':media_links}
-                                    ,config=config)
+                    if (is_video and media_links) or not is_video and post:
 
-                    if result['generation']:
-                        logger.info(f'[SUCESSES]: generating post')
-                        results.append(clean_text(result['generation']))
-                        images_links.append(result['image_url'])
+                        forbidden = find_on_banned_org(post)
+                        add_message = f"\n СПИСКИ НАЙДЕННЫХ ИНОАГЕНТОВ ИЛИ ЭКСТРЕМИСТОВ В ПОСТУ (ОБЯЗАТЕЛЬНО УПОМЯНУТЬ ОБ ЭТОМ): \n {forbidden} \n " \
+                                      if forbidden else ''
+                        result = graph.invoke({'post': post,
+                                               'emoji_reactions': emoji_reactions,
+                                        'is_selected_channels': True,
+                                        'media_links':media_links}
+                                        ,config=config)
 
-                    cache_db.set(f'post_{posts['post_url']}', post,
-                                    ex=24 * 60 * 60 )
-            else:
-                logger.info(f'[SKIP]: dublicate or ads')
-                continue
-        else:
-            logger.info(f'[SKIP]: ads')
-            continue
+                        if result['generation']:
+                            logger.info(f'[SUCESSES]: generating post')
+                            results.append(clean_text(result['generation']))
+                            images_links.append(result['image_url'])
+
+                        cache_db.set(f'post_{posts['post_url']}', post,
+                                        ex=24 * 60 * 60 )
         
     return results, images_links
 
@@ -243,30 +242,49 @@ async def cmd_menu(message: types.Message):
     user_id = message.from_user.id
     builder = ReplyKeyboardBuilder()
     #builder.row(KeyboardButton(text="✍️♾️ Найти ТГК и переписать посты"))
-    builder.row(KeyboardButton(text="✍️ Переписать пост"))
-    builder.row(KeyboardButton(text="✍️✈️ Переписать посты по заданным каналам"))
-    builder.row(KeyboardButton(text="✍️🕸️🌏 WebRag"))
-    builder.row(KeyboardButton(text="🤔 Выбрать каналы для запуска агента"))
-    builder.row(KeyboardButton(text="✍️✈️ (AUTOMATIC) Переписать посты по заданным каналам"))
-    builder.row(KeyboardButton(text="🤖💬 Получить последнюю генерацию поста"))
-    builder.row(KeyboardButton(text="Develop: Получить аналитику по каналу"))
-
     if user_id == ADMIN_ID:
-        builder.row(KeyboardButton(text="➕ Добавить нового админа в ТГК"))
-        builder.row(KeyboardButton(text="🧑‍💻 Поменять пароль у администратора"))
-        builder.row(KeyboardButton(text="🆔 Сменить идентификатор администратора"))
+        builder.row(KeyboardButton(text="🤖 Legacy"))
+        builder.row(KeyboardButton(text="🤔 Выбрать каналы для запуска агента"))
+        builder.row(KeyboardButton(text="✍️✈️ (AUTOMATIC) Переписать посты по заданным каналам"))
+
     await message.answer(
         "Выберите действие:",
         reply_markup=builder.as_markup(resize_keyboard=True)
     )
 
-# @router.message(F.text == '🤔 Выбрать каналы для запуска агента')
-# async def choice_channels(message: types.Message, state: FSMContext):
-#     await state.set_state(BotStates.set_channel)
-#     builder = ReplyKeyboardBuilder()
-#     for ids in CHANNELS_IDS:
-#         builder.row(KeyboardButton(text="➕ Добавить нового админа в ТГК"))
-# 
+@router.message(F.text == '🤔 Выбрать каналы для запуска агента')
+async def choice_channels(message: types.Message, state: FSMContext, bot: Bot):
+    await state.set_state(BotStates.set_channel)
+    builder = ReplyKeyboardBuilder()
+    for chat_id in CHANNELS_IDS:
+
+        chat_info = await bot.get_chat(chat_id=chat_id)
+        builder.row(KeyboardButton(text="➕ Добавить нового админа в ТГК"))
+        builder.row(KeyboardButton(text=f"{chat_info.title}"))
+
+
+@router.message(F.text == '✍️✈️ (AUTOMATIC) Переписать посты по заданным каналам')
+async def auto_write_post_theme_single(message: types.Message, state: FSMContext):
+    await state.set_state(BotStates.auto_rewrite_follow_channel_post)
+    await message.answer("Отлично! Названия каналов!"\
+                            "Требуемый формат записи каналов:"\
+                            "@название канала 1, @название канала 2, ..., @название канала k."\
+                            "Либо пересылайте ссылки на каналы в виде:"\
+                            "https://t.me/<имя канала>",
+                          reply_markup=ReplyKeyboardRemove())
+
+
+@router.message(F.text == '🤖 Legacy')
+async def legacy_buttons(message: types.Message, state: FSMContext):
+    builder = ReplyKeyboardBuilder()
+    builder.row(KeyboardButton(text="✍️ Переписать пост"))
+    builder.row(KeyboardButton(text="✍️✈️ Переписать посты по заданным каналам"))
+    builder.row(KeyboardButton(text="✍️🕸️🌏 WebRag"))
+    builder.row(KeyboardButton(text="🤖💬 Получить последнюю генерацию поста"))
+    builder.row(KeyboardButton(text="Develop: Получить аналитику по каналу"))
+    builder.row(KeyboardButton(text="➕ Добавить нового админа в ТГК"))
+    builder.row(KeyboardButton(text="🧑‍💻 Поменять пароль у администратора"))
+    builder.row(KeyboardButton(text="🆔 Сменить идентификатор администратора"))
 
 @router.message(F.text == '✍️♾️ Найти ТГК и переписать посты')
 async def write_post_theme_multiple(message: types.Message, state: FSMContext):
@@ -298,17 +316,6 @@ async def rewrite_channels_post(message: types.Message, state: FSMContext):
 async def write_post_theme_single(message: types.Message, state: FSMContext):
     await state.set_state(BotStates.theme_user_message_rag)
     await message.answer('Отлично! Жду тему для генерации одного поста с использованием поисковика',
-                          reply_markup=ReplyKeyboardRemove())
-
-
-@router.message(F.text == '✍️✈️ (AUTOMATIC) Переписать посты по заданным каналам')
-async def auto_write_post_theme_single(message: types.Message, state: FSMContext):
-    await state.set_state(BotStates.auto_rewrite_follow_channel_post)
-    await message.answer("Отлично! Названия каналов!"\
-                            "Требуемый формат записи каналов:"\
-                            "@название канала 1, @название канала 2, ..., @название канала k."\
-                            "Либо пересылайте ссылки на каналы в виде:"\
-                            "https://t.me/<имя канала>",
                           reply_markup=ReplyKeyboardRemove())
 
 
@@ -610,8 +617,6 @@ async def get_latest_llm_message(message:types.Message):
         await message.answer('Нет записей!')
         await cmd_menu(message)
 
-
-# на это ставим скеудлер
 async def channel_look_up(channels: list, config: dict,
                           storage: BaseStorage, bot: Bot,
                           user_id: int | str, chat_id: int | str):

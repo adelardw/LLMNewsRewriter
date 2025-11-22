@@ -4,6 +4,7 @@ metadata:
     temperature: 3e-2
   tgc_search_kwargs:
     max_post_per_channel: 3
+  news_word_threshold: 10
   web_retrieve_kwargs:
     max_search_results: 5
     n_chunks: 3

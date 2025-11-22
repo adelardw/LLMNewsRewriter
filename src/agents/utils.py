@@ -7,13 +7,27 @@ import requests
 from loguru import logger
 import json
 from datetime import datetime
-
+import functools
 
 def measure_time(func):
 
     def wrapper(*args, **kwargs):
         start = perf_counter()
         result = func(*args, **kwargs)
+        time_res = perf_counter() - start
+        log_data = {"node": func.__name__, "elapsed_time": f"{time_res} s", "asctime": datetime.now().isoformat()}
+        logger.info(json.dumps(log_data))
+        return result
+
+    return wrapper
+
+
+def measure_time_async(func):
+
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        start = perf_counter()
+        result = await func(*args, **kwargs)
         time_res = perf_counter() - start
         log_data = {"node": func.__name__, "elapsed_time": f"{time_res} s", "asctime": datetime.now().isoformat()}
         logger.info(json.dumps(log_data))

@@ -7,3 +7,4 @@ back/
 images/
 tgc_bot.egg-info/
 qdrant_data/
+tmp/

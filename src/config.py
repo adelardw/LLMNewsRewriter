@@ -26,7 +26,6 @@ CHANNEL_ID = os.getenv('CHANNEL_ID')
 CHANNELS_IDS = os.getenv('CHANNELS_IDS').split(',')
 TIMEZONE = pytz.timezone(os.getenv('TIMEZONE'))
 EMBED_MODEL = os.getenv('EMBED_MODEL','cointegrated/LaBSE-en-ru')
-
 TEMPLATE_PATH = "./tmp"
 TMP_CACHED_DEPTH = 50
 
@@ -38,6 +37,7 @@ with open(CONFIG_PATH, 'r') as file:
     endpoints = data.metadata.web.tgstat_endpoints
     web_retrieve_kwargs = data.metadata.web_retrieve_kwargs
     tgc_search_kwargs = data.metadata.tgc_search_kwargs
+    news_word_threshold = data.metadata.news_word_threshold
 
 def save_yaml(input_data: tp.Any, saved_key: str = 'user_agents'):
     data.metadata.web[saved_key] = input_data

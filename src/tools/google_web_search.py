@@ -7,6 +7,7 @@ from ddgs import DDGS
 logging.getLogger('icrawler').setLevel(logging.WARNING)
 logging.getLogger('requests').setLevel(logging.WARNING)
 
+from urllib.parse import urlparse
 from icrawler.builtin import GoogleImageCrawler
 from icrawler import ImageDownloader
 from bing_image_downloader import downloader
@@ -143,58 +144,69 @@ def get_bing_image_loads(keyword: str,
 
 
 
-def get_ddgs_image_loads(query, max_images=10,
-                         base_path: str = TEMPLATE_PATH,):
-    
+def get_ddgs_image_loads(query, max_images=5, base_path: str = TEMPLATE_PATH):
+    # 1. Создаем базовую папку
     if not os.path.exists(base_path):
-        os.mkdir(base_path)
+        os.makedirs(base_path, exist_ok=True)
     
-    save_directory = os.path.join(base_path, query.replace(' ','_'))
+    # 2. Чистим имя папки от запрещенных символов (/, \, :, *, ?, ", <, >, |)
+    safe_query_name = "".join([c if c.isalnum() else "_" for c in query])
+    save_directory = os.path.join(base_path, safe_query_name)
+    
     if not os.path.exists(save_directory):
-        os.mkdir(save_directory)
+        os.makedirs(save_directory, exist_ok=True)
+
+    links = []
 
     try:
         with DDGS() as loader:
+            # Поиск картинок
             results = loader.images(
                 query=query,
-                region='ru',
-                timelimit="w",
+                region='ru-ru',
+                safesearch='off',
                 max_results=max_images
             )
+            
+            results_list = list(results)
+            if not results_list:
+                logger.warning(f"Картинки по запросу '{query}' не найдены.")
+                return []
 
             count = 0
-            for i, res in enumerate(results):
-                image_url = res.get('image')
+            for res in results_list:
 
+                image_url = res.get('image')
                 if not image_url:
                     continue
 
                 try:
-                    logger.info(f"Скачивание {count+1}: {image_url[:50]}...")
-    
-                    response = requests.get(image_url, timeout=10)
+                    parsed_url = urlparse(image_url)
+                    ext = os.path.splitext(parsed_url.path)[1]
+                    if len(ext) < 3 or len(ext) > 5:
+                        ext = '.jpg'
+
+                    filename = f"img_{count + 1}{ext}"
+                    full_path = os.path.join(save_directory, filename)
+                    
+                    logger.info(f"Скачивание {count+1}: {image_url[:30]}...")
+                    
+                    response = requests.get(image_url, timeout=5)
 
                     if response.status_code == 200:
-                        ext = os.path.splitext(image_url)[1]
-                        if len(ext) < 3 or len(ext) > 5:
-                            ext = '.jpg' # Дефолтное расширение
-
-                        filename = f"img_{count + 1}{ext}"
-                        full_path = os.path.join(save_directory, filename)
-
                         with open(full_path, 'wb') as f:
                             f.write(response.content)
-
                         count += 1
                     else:
-                        logger.error(f"❌ Ошибка доступа (код {response.status_code})")
+                        logger.warning(f"Пропуск (код {response.status_code}): {image_url}")
 
                 except Exception as e:
-                    logger.error(f"❌ Ошибка при скачивании: {e}")
+                    logger.error(f"Ошибка при скачивании конкретной картинки: {e}")
+                    continue
 
         links = get_links_for_images(save_directory)
         return links
-    except Exception as e:
-        logger.error(f"❌ Ошибка при скачивании: {e}")
-        return []
 
+    except Exception as e:
+        logger.error(f"Глобальная ошибка в get_ddgs_image_loads: {e}")
+        return []

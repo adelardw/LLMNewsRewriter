@@ -1,7 +1,7 @@
 import asyncio
-from src.tgbot.tgbot import main
-
+#from tgbot.legacy_tgbot import main
+from src.tgbot.tg_bot import multimain
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    asyncio.run(multimain())
