@@ -115,7 +115,7 @@ async def post_generation(channel_name: str, config: dict):
         url = posts.get('post_url', '')
         
         if cache_db.get(f'post_{url}'):
-            logger.info(f'[SKIP TAG]: in cache')
+            logger.info(f'[INCACHE TAG]')
             continue
             
         if not is_ads:
