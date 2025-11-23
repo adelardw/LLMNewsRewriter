@@ -13,6 +13,20 @@ from src.config import EMBED_MODEL
 TELEGRAM_MAX_MESSAGE_LENGTH = 4096
 TELEGRAM_MAX_MESSAGE_CAPTION = 1024
 
+def prepare_messages(post: str):
+    long_short_message = split_short_long_message(post)
+    results = []
+    if long_short_message:
+        short, long = long_short_message
+        results.append(short)
+        if long:
+            chunks = split_long_message(long)
+            results.extend(chunks)
+        return results, True
+    else:
+        results.append(post)
+        return results, False
+    
 def max_day_in_month(current_year: int, current_month: int):
     '''
     Вычисляетмаксимальное количество дней в данному году и в данном месяце
