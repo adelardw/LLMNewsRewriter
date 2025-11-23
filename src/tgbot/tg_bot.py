@@ -7,7 +7,6 @@ from collections import deque
 from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.base import BaseStorage, StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import KeyboardButton, ReplyKeyboardRemove, BufferedInputFile
@@ -24,7 +23,7 @@ from src.tgbot.utils import (HFLCSSimTexts,
                             find_on_banned_org, clean_text, prepare_messages)
 
 from src.tools.telegram_web_search import get_channel_posts
-from src.config import tgc_search_kwargs, news_word_threshold, TIMEZONE, CHANNEL_ID, ADMIN_ID, API_TOKEN, CHANNELS_IDS
+from src.config import tgc_search_kwargs, news_word_threshold, TIMEZONE, ADMIN_ID, API_TOKEN, CHANNELS_IDS
 
 
 embedder = HFLCSSimTexts()
@@ -111,12 +110,12 @@ async def post_generation(channel_name: str, config: dict):
         return [], []
 
     for i, posts in enumerate(last_posts):
-        logger.info(f'Select Post {i}')
+        logger.info(f'[{channel_name}] [SELECTPOST TAG]: id {i}')
         is_ads = posts.get('is_ads', False)
         url = posts.get('post_url', '')
         
         if cache_db.get(f'post_{url}'):
-            logger.info(f'[SKIP]: in cache')
+            logger.info(f'[SKIP TAG]: in cache')
             continue
             
         if not is_ads:
@@ -158,7 +157,7 @@ async def post_generation(channel_name: str, config: dict):
                             results.append(clean_text(result['generation']))
                             images_links.append(result.get('image_url'))
 
-                        cache_db.set(f'post_{url}', post, ex=24 * 60 * 60)
+                        cache_db.set(f'post_{url}', post, ex=24 * 60 * 60 * 2)
                     else:
                         logger.info('[VIDEO TAG]')
                 else:
@@ -167,6 +166,8 @@ async def post_generation(channel_name: str, config: dict):
                     
                     if dublcate_cond:
                         logger.info('[DUBLICATE TAG]')
+            else:
+                logger.info('[SHORTPOST TAG]')
         
     return results, images_links
 
