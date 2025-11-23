@@ -232,12 +232,11 @@ async def choice_channels(message: types.Message, state: FSMContext, bot: Bot):
     await state.set_state(BotStates.set_channel)
     builder = ReplyKeyboardBuilder()
     
-    # Создаем кнопки и заполняем кэш, чтобы потом по названию найти ID
     for chat_id in CHANNELS_IDS:
         try:
             chat_info = await bot.get_chat(chat_id=chat_id)
             title = chat_info.title
-            TARGET_CHANNELS_CACHE[title] = chat_id # Запоминаем ID
+            TARGET_CHANNELS_CACHE[title] = chat_id
             builder.row(KeyboardButton(text=title))
         except Exception as e:
             logger.error(f"Не могу получить инфо о канале {chat_id}: {e}")
