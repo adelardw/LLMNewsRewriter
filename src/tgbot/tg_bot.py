@@ -114,7 +114,7 @@ async def post_generation(channel_name: str, config: dict):
         is_ads = posts.get('is_ads', False)
         url = posts.get('post_url', '')
         
-        if cache_db.get(f'post_{url}'):
+        if cache_db.get(f'post_{channel_name}_{url}'):
             logger.info(f'[INCACHE TAG]')
             continue
             
@@ -134,7 +134,7 @@ async def post_generation(channel_name: str, config: dict):
             media_links = posts.get('media_links', [])
 
             if post:
-                dublcate_cond = find_dublicates(embedder, cache_db, post, 0.7)
+                dublcate_cond = find_dublicates(embedder, cache_db, post, channel_name, 0.7)
                 ads_cond = find_ads(post)
                 if not dublcate_cond and not ads_cond:
                     if not is_video:
@@ -157,7 +157,7 @@ async def post_generation(channel_name: str, config: dict):
                             results.append(clean_text(result['generation']))
                             images_links.append(result.get('image_url'))
 
-                        cache_db.set(f'post_{url}', post, ex=24 * 60 * 60 * 2)
+                        cache_db.set(f'post_{channel_name}_{url}', post, ex=24 * 60 * 60 * 2)
                     else:
                         logger.info('[VIDEO TAG]')
                 else:

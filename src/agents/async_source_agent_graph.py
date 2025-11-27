@@ -3,11 +3,10 @@ from langgraph.graph import START, END, StateGraph
 from langgraph.checkpoint.memory import InMemorySaver
 from loguru import logger
 import asyncio
-from src.config import endpoints, OPEN_ROUTER_API_KEY, TEXT_IMAGE_MODEL, TEXT_GENERATION_MODEL
+from src.config import OPEN_ROUTER_API_KEY, TEXT_IMAGE_MODEL, TEXT_GENERATION_MODEL
 
 
-from src.agents.prompts import (simillar_prompt, relevance_input_prompt,post_creator_prompt,
-                                rewiritter_prompt, relevance_prompt, image_selection_prompt,theme_prompt,
+from src.agents.prompts import (rewiritter_prompt, relevance_prompt, image_selection_prompt,theme_prompt,
                                 image_description_prompt, meme_find_prompt,final_prompt,
                                 FORBIDDEN_ANSWER)
 
@@ -18,6 +17,7 @@ from src.agents.utils import redis_update_links, preproc_text_on_banned_org, mea
 from src.tools.google_web_search import get_ddgs_image_loads
 from src.tools.utils import rm_img_folders
 from src.open_router import OpenRouterChat
+from src.agents.structured_outputs import ImageSelection, NewsClassifierReactions
 #import datetime as dt
 #import pytz
 
@@ -31,14 +31,11 @@ text_image_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
 finalizer_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
                                model_name=TEXT_IMAGE_MODEL)
 
-relevance_query_agent = relevance_input_prompt | llm | StrOutputParser()
-news_classifier_agent = relevance_prompt | llm | StrOutputParser()
-simillar_agent = simillar_prompt | llm | StrOutputParser()
+news_classifier_agent = relevance_prompt | llm | StrOutputParser() #.with_structured_output(NewsClassifierReactions) #| StrOutputParser()
 rewriter_agent = rewiritter_prompt | llm | StrOutputParser()
-post_creator_agent = post_creator_prompt | llm | StrOutputParser()
 search_query_gen_agent = theme_prompt | llm | StrOutputParser()
 
-image_selection_agent = image_selection_prompt | text_image_llm | StrOutputParser()
+image_selection_agent = image_selection_prompt | text_image_llm.with_structured_output(ImageSelection)
 image_description_agent = image_description_prompt | text_image_llm | StrOutputParser()
 
 meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
@@ -47,64 +44,6 @@ final = final_prompt | finalizer_llm | StrOutputParser()
 
 ckpt = InMemorySaver()
 
-@measure_time_async
-async def router(state):
-
-    replyed = state.get('is_replyed_message', False)
-    selected = state.get('is_selected_channels', False)
-    decision = state.get('decision', False)
-    web_ctx = state.get('add_web_parsing_as_ctx', False)
-
-    if not web_ctx:
-        if (replyed or selected) and not decision:
-            return '👀⁉️ClassifierReactionNode'
-        if (not replyed and not selected) and not decision:
-            return '✅RelevanceQueryNode'
-        if (not replyed and not selected) and decision:
-            return '👀⁉️ClassifierReactionNode'
-    else:
-        return "🕸️🌏FindContextinWebNode"
-
-@measure_time_async
-async def relevance_query_node(state):
-    user_message = state['user_message']
-    answer = await relevance_query_agent.ainvoke({'themes': endpoints,
-                                           'user_message': user_message})
-    if FORBIDDEN_ANSWER in answer:
-        state['generation'] = FORBIDDEN_ANSWER
-        state['decision'] = False
-    else:
-        state['decision'] = True
-    return state
-
-@measure_time_async
-async def relevance_router(state):
-    if state['decision']:
-        return '📱FindSimillarThemeNode'
-    else:
-        return END
-
-@measure_time_async
-async def simillar_node(state):
-
-    user_message = state['user_message']
-    state['endpoint'] = await simillar_agent.ainvoke({'endpoints': endpoints,
-                                               'user_message': user_message})
-    return state
-
-
-
-@measure_time_async
-async def web_ctx_router(state):
-    web_ctx = state.get('add_web_parsing_as_ctx', False)
-    post = state.get('post', None)
-    
-    if web_ctx:
-        return '🕸️🌏FindContextinWebNode'
-    if not web_ctx and post:
-        return '👀⁉️ClassifierReactionNode'
-    else:
-        return END
 
 
 @measure_time_async
@@ -134,14 +73,13 @@ async def meme_node(state):
     try:
         
         generation = await meme_agent.ainvoke({'image_url': media_links,
-                                        'post':post,
-                                        'reactions': f'Реакции с поста: {emoji_reactions}'})
+                                                'post':post,
+                                                'reactions': f'Реакции с поста: {emoji_reactions}'})
 
-        is_meme = 'true' in generation.lower()
+        state['is_meme'] = is_meme = 'true' in generation.lower()
         if is_meme:
             state['generation'] = None
             
-        state['is_meme'] = is_meme
     except Exception as e:
         logger.info(f'Случилась какая - то при определении мемности поста: {e}')
         state['is_meme'] = False
@@ -166,48 +104,28 @@ async def media_ctx_node(state):
         except Exception as e:
             logger.info(f'Случилась какая - то ошибка описании картинки к посту {e}')
     
-    return {**state, 'media_ctx': None}
-
-@measure_time_async
-async def web_ctx_node(state):
-    search_query = state['user_message']
-    web_ctx = await asyncio.to_thread(retriever, search_query)
-    state['add_web_parsing_as_ctx'] = state['decision'] = False
-    return {**state, 'web_ctx':web_ctx}
-
-
-@measure_time_async
-async def creator_post_node(state):
-
-    query = state['user_message']
-    web_ctx = state['web_ctx']
-    generation = await post_creator_agent.ainvoke({'query':query,'web_ctx': web_ctx})
-    state['web_ctx'] = None
-    return {**state, 'generation': generation}
+    return {**state, 'media_ctx': 'Нет изображения к посту'}
 
 
 @measure_time_async
 async def rewriter_node(state):
     post = state['post']
     grade = state['grade']
-    if media_ctx:=state.get('media_ctx', None):
-        generation = await rewriter_agent.ainvoke({'post': post,'grade':grade,
-                                        'media_ctx':media_ctx})
-    else:
-        generation = await rewriter_agent.ainvoke({'post': post,'grade':grade,
-                                            'media_ctx':''})
-    # Сбрасываем состояния
-    state['is_replyed_message'] = state['is_selected_channels'] = state['decision'] = False
-    state['media_ctx'] = None
-    state['media_links'] = []
+    media_ctx = state.get('media_ctx', '')
+    generation = await rewriter_agent.ainvoke({'post': post,'grade':grade,
+                                                'media_ctx': media_ctx})
+
     return {**state, 'generation': generation}
+
 
 @measure_time_async
 async def select_search_query_node(state):
     
     gen_post = state['generation']
-    query = await search_query_gen_agent.ainvoke({'post': gen_post})
-    state['search_query'] = query
+    media_ctx = state.get('media_ctx', '')
+    state['search_query']  = await search_query_gen_agent.ainvoke({'post': gen_post,
+                                                                   'media_ctx': media_ctx})
+    
     
     return state
 
@@ -222,21 +140,19 @@ async def select_image_to_post_node(state):
 
     if finded_links:        
         try:
-            link_ind = await image_selection_agent.ainvoke({'query': "Какая картинка лучше всего подходит под следующий пост?",
+            link_ind = await image_selection_agent.ainvoke({'query': "Какая картинка лучше всего подходит под следующий пост?"\
+                                                                    f"Найдено всего: {len(finded_links)} изображений",
                                                      "post":generated_post,
                                                      "image_url": finded_links})
-
-            link_ind = int(link_ind)
+            link_ind = int(link_ind.image_number)
             
             if link_ind != -1:
                 url = finded_links.pop(link_ind)
-                if finded_links:
-                    redis_update_links(finded_links,cache_db, ttl=60*60)
-                    
                 return {**state, 'image_url': url}
-        
+            else:   
+                return {**state, 'image_url': None}
+
         except Exception as e:
-            redis_update_links(finded_links,cache_db ,ttl=60*60)
             logger.info(f'Случилась какая - то ошибка при выборе картинки к посту {e}')
     
     return {**state, 'image_url': None}
@@ -249,43 +165,15 @@ async def finalizer(state):
 
     
 workflow = StateGraph(SourceAgentGraph)
-workflow.add_node("✅RelevanceQueryNode", relevance_query_node)
-workflow.add_node('🕸️🌏FindContextinWebNode', web_ctx_node)
 workflow.add_node('👀⁉️ClassifierReactionNode', classifier_node)
 workflow.add_node('🤡😂MemeNode', meme_node)
 workflow.add_node('✈️🖼️MediaCtxNode', media_ctx_node)
 workflow.add_node('📄✍️RewriterNode', rewriter_node)
-workflow.add_node("📱FindSimillarThemeNode", simillar_node)
-workflow.add_node("✈️🕸️🌏CreatePostFromWebSearchNode", creator_post_node)
 workflow.add_node("👀🕸️🌏MakeSearchQuery", select_search_query_node)
 workflow.add_node('👀🖼️SelectImage4Post', select_image_to_post_node)
 workflow.add_node('⁉️Finalizer', finalizer)
 
-
-workflow.add_conditional_edges(START,
-                               router,
-                               {"✅RelevanceQueryNode":"✅RelevanceQueryNode",
-                               "👀⁉️ClassifierReactionNode": "👀⁉️ClassifierReactionNode",
-                               "🕸️🌏FindContextinWebNode":"🕸️🌏FindContextinWebNode"})
-
-workflow.add_conditional_edges(
-    '✅RelevanceQueryNode',
-    relevance_router,
-    {"📱FindSimillarThemeNode": "📱FindSimillarThemeNode",
-     END:END})
-
-workflow.add_conditional_edges(
-    '📱FindSimillarThemeNode',
-    web_ctx_router,
-    {
-        '🕸️🌏FindContextinWebNode': '🕸️🌏FindContextinWebNode',
-        '👀⁉️ClassifierReactionNode':'👀⁉️ClassifierReactionNode',
-        END: END})
-
-workflow.add_edge('🕸️🌏FindContextinWebNode', '✈️🕸️🌏CreatePostFromWebSearchNode')
-workflow.add_edge('✈️🕸️🌏CreatePostFromWebSearchNode', "👀🕸️🌏MakeSearchQuery")
-
-
+workflow.add_edge(START, '👀⁉️ClassifierReactionNode')
 workflow.add_conditional_edges('👀⁉️ClassifierReactionNode',
                                media_ctx_router,
                                {"🤡😂MemeNode":"🤡😂MemeNode",

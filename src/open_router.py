@@ -1,6 +1,7 @@
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_core.messages import SystemMessage, HumanMessage
+from loguru import logger
 from openai import OpenAI
 import typing as tp
 from pydantic import BaseModel
@@ -204,13 +205,17 @@ class OpenRouterChat(BaseChatModel):
         )
 
         message = result.generations[0].message
-
         if self._schema and "structured_output" in message.response_metadata:
-
             return message.response_metadata["structured_output"]
 
         return message
 
+    async def ainvoke(self, input, config = None, *, stop = None, **kwargs):
+        message = await super().ainvoke(input, config, stop=stop, **kwargs)
+        if self._schema and "structured_output" in message.response_metadata:
+            return message.response_metadata["structured_output"]
+
+        return message
     def bind_tools(
         self,
         tools: tp.List[tp.Union[tp.Dict[str, tp.Any], tp.Type[BaseModel]]],

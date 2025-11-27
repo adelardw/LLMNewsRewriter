@@ -291,9 +291,10 @@ class HFLCSSimTexts:
         return (embed_input * embed_target).sum()
 
 def find_dublicates(embedder: HFLCSSimTexts, cache: StrictRedis, post: str,
-                      threshold: float = 0.7):
+                    channel_name: str,
+                    threshold: float = 0.7):
     
-    for key in cache.scan_iter(match='post_*'):
+    for key in cache.scan_iter(match=f'post_{channel_name}_*'):
         cached_post = cache.get(key).decode()
         
         if embedder.cossine_simmilar(post, cached_post) >= threshold:
