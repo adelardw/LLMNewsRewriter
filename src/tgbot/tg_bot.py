@@ -100,7 +100,7 @@ async def auto_send_posts(bot: Bot, target_channel_id: int | str, storage: BaseS
 
         await state.update_data(generated_posts=deque(), images_links=deque())
 
-async def post_generation(channel_name: str, config: dict):
+async def post_generation(channel_name: str):
     results = []
     images_links = []
     try:
@@ -147,7 +147,7 @@ async def post_generation(channel_name: str, config: dict):
                             'emoji_reactions': emoji_reactions,
                             'is_selected_channels': True,
                             'media_links': media_links
-                        }, config=config)
+                        })
 
                         if result.get('generation'):
                             if is_junk_post_regex(result['generation']):
@@ -173,7 +173,7 @@ async def post_generation(channel_name: str, config: dict):
 
 
 
-async def channel_look_up(source_channels: list, config: dict,
+async def channel_look_up(source_channels: list,
                           storage: BaseStorage, bot: Bot,
                           user_id: int | str, target_channel_id: int | str):
     
@@ -186,7 +186,7 @@ async def channel_look_up(source_channels: list, config: dict,
     images_links = []
     
     for chan in source_channels:
-        gen_posts, links = await post_generation(chan, config)
+        gen_posts, links = await post_generation(chan)
         results.extend(gen_posts)
         images_links.extend(links)
 
@@ -308,8 +308,6 @@ async def set_sources_and_start_scheduler(message: types.Message, state: FSMCont
         if scheduler.get_job(job_id):
             scheduler.remove_job(job_id)
             await message.answer(f"⚙️ Старая задача для этого канала удалена. Создаю новую...")
-
-        config = {"configurable": {"thread_id": user_id}}
         
         # Добавляем задачу
         scheduler.add_job(
@@ -320,7 +318,6 @@ async def set_sources_and_start_scheduler(message: types.Message, state: FSMCont
             next_run_time=dt.datetime.now() + dt.timedelta(seconds=5),
             kwargs={
                 'source_channels': source_channels_result,
-                'config': config,
                 'bot': bot,
                 'user_id': user_id,
                 'target_channel_id': target_channel_id,

@@ -42,7 +42,7 @@ meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 
 final = final_prompt | finalizer_llm | StrOutputParser()
 
-ckpt = InMemorySaver()
+#ckpt = InMemorySaver()
 
 
 
@@ -191,4 +191,4 @@ workflow.add_edge("👀🕸️🌏MakeSearchQuery", "👀🖼️SelectImage4Post
 workflow.add_edge("👀🖼️SelectImage4Post", "⁉️Finalizer")
 workflow.add_edge("⁉️Finalizer", END)
 
-async_graph = workflow.compile(debug=False, checkpointer=ckpt)
+async_graph = workflow.compile(debug=False)
