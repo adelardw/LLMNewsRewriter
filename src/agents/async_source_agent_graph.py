@@ -3,23 +3,19 @@ from langgraph.graph import START, END, StateGraph
 from langgraph.checkpoint.memory import InMemorySaver
 from loguru import logger
 import asyncio
+from datetime import datetime
 from src.config import OPEN_ROUTER_API_KEY, TEXT_IMAGE_MODEL, TEXT_GENERATION_MODEL
 
 
 from src.agents.prompts import (rewiritter_prompt, relevance_prompt, image_selection_prompt,theme_prompt,
-                                image_description_prompt, meme_find_prompt,final_prompt,
-                                FORBIDDEN_ANSWER)
+                                image_description_prompt, meme_find_prompt,final_prompt)
 
 from src.agents.agent_schemas import SourceAgentGraph
-from src.tools.ddgs_web_search import retriever
-from src.tgbot.cache import cache_db
-from src.agents.utils import redis_update_links, preproc_text_on_banned_org, measure_time_async
+from src.agents.utils import preproc_text_on_banned_org, measure_time_async
 from src.tools.google_web_search import get_ddgs_image_loads
 from src.tools.utils import rm_img_folders
 from src.open_router import OpenRouterChat
-from src.agents.structured_outputs import ImageSelection, NewsClassifierReactions
-#import datetime as dt
-#import pytz
+from src.agents.structured_outputs import ImageSelection
 
 
 llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
@@ -31,9 +27,9 @@ text_image_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
 finalizer_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
                                model_name=TEXT_IMAGE_MODEL)
 
-news_classifier_agent = relevance_prompt | llm | StrOutputParser() #.with_structured_output(NewsClassifierReactions) #| StrOutputParser()
+news_classifier_agent = relevance_prompt | llm | StrOutputParser()
 rewriter_agent = rewiritter_prompt | llm | StrOutputParser()
-search_query_gen_agent = theme_prompt | llm | StrOutputParser()
+search_query_gen_agent = theme_prompt | llm.bind(max_tokens=40) | StrOutputParser()
 
 image_selection_agent = image_selection_prompt | text_image_llm.with_structured_output(ImageSelection)
 image_description_agent = image_description_prompt | text_image_llm | StrOutputParser()
@@ -42,7 +38,6 @@ meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 
 final = final_prompt | finalizer_llm | StrOutputParser()
 
-#ckpt = InMemorySaver()
 
 
 
@@ -50,10 +45,10 @@ final = final_prompt | finalizer_llm | StrOutputParser()
 async def classifier_node(state):
     post = state['post']
     emoji_reactions = state['emoji_reactions']
-    grade = await news_classifier_agent.ainvoke({'post': post,
-                                          'emoji_reactions':emoji_reactions})
-    
-    return {**state, 'grade': grade}
+    if emoji_reactions:
+        state['grade'] = await news_classifier_agent.ainvoke({'post': post,
+                                                             'emoji_reactions':emoji_reactions})
+    return state
 
 
 @measure_time_async
@@ -104,18 +99,26 @@ async def media_ctx_node(state):
         except Exception as e:
             logger.info(f'Случилась какая - то ошибка описании картинки к посту {e}')
     
-    return {**state, 'media_ctx': 'Нет изображения к посту'}
+    return state
 
 
 @measure_time_async
 async def rewriter_node(state):
     post = state['post']
-    grade = state['grade']
-    media_ctx = state.get('media_ctx', '')
-    generation = await rewriter_agent.ainvoke({'post': post,'grade':grade,
-                                                'media_ctx': media_ctx})
+    grade = state.get('grade', None)
+    media_ctx = state.get('media_ctx', None)
+    
+    if grade or media_ctx:
+        addititional_info = "\n Дополнительная информация к посту: \n"\
+        
+        addititional_info +=  f"Аггрегированная оценка от агента: \n {grade} \n" if grade else ''
+        addititional_info += f"Описание изображения к посту (ТОЛЬКО КАК КОНТЕКСТ): \n {media_ctx} \n" if media_ctx else ''
+                       
+        post += addititional_info
 
-    return {**state, 'generation': generation}
+    state['generation'] = await rewriter_agent.ainvoke({'post': post})
+
+    return state
 
 
 @measure_time_async
@@ -123,7 +126,13 @@ async def select_search_query_node(state):
     
     gen_post = state['generation']
     media_ctx = state.get('media_ctx', '')
+    date = datetime.now()
+    
+    month = date.month
+    year = date.year
+    
     state['search_query']  = await search_query_gen_agent.ainvoke({'post': gen_post,
+                                                                   'date': f'\n Cейчас: {month} месяц и {year} год',
                                                                    'media_ctx': media_ctx})
     
     
@@ -159,8 +168,8 @@ async def select_image_to_post_node(state):
 
 @measure_time_async
 async def finalizer(state):
-    state['generation'] = preproc_text_on_banned_org(state['generation'])
-    state['generation'] = await final.ainvoke({"post": state['generation']})
+    text = preproc_text_on_banned_org(state['generation'])
+    state['generation'] = await final.ainvoke({"post": text})
     return state
 
     

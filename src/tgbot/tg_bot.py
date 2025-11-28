@@ -145,7 +145,6 @@ async def post_generation(channel_name: str):
                         result = await async_graph.ainvoke({
                             'post': post + add_message,
                             'emoji_reactions': emoji_reactions,
-                            'is_selected_channels': True,
                             'media_links': media_links
                         })
 
@@ -153,9 +152,10 @@ async def post_generation(channel_name: str):
                             if is_junk_post_regex(result['generation']):
                                 logger.info('[JUNKGENERATION TAG]')
                                 continue
-                            logger.info(f'[SUCESSES TAG]')
-                            results.append(clean_text(result['generation']))
-                            images_links.append(result.get('image_url'))
+                            else:
+                                logger.info(f'[SUCESSES TAG]')
+                                results.append(clean_text(result['generation']))
+                                images_links.append(result.get('image_url'))
 
                         cache_db.set(f'post_{channel_name}_{url}', post, ex=24 * 60 * 60 * 2)
                     else:
