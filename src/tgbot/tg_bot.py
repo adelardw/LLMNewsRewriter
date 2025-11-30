@@ -100,7 +100,7 @@ async def auto_send_posts(bot: Bot, target_channel_id: int | str, storage: BaseS
 
         await state.update_data(generated_posts=deque(), images_links=deque())
 
-async def post_generation(channel_name: str):
+async def post_generation(channel_name: str, target_channel_id: int | str):
     results = []
     images_links = []
     try:
@@ -114,7 +114,7 @@ async def post_generation(channel_name: str):
         is_ads = posts.get('is_ads', False)
         url = posts.get('post_url', '')
         
-        if cache_db.get(f'post_{channel_name}_{url}'):
+        if cache_db.get(f'post_{target_channel_id}_{url}'):
             logger.info(f'[INCACHE TAG]')
             continue
             
@@ -134,7 +134,7 @@ async def post_generation(channel_name: str):
             media_links = posts.get('media_links', [])
 
             if post:
-                dublcate_cond = find_dublicates(embedder, cache_db, post, channel_name, 0.7)
+                dublcate_cond = find_dublicates(embedder, cache_db, post, target_channel_id, 0.7)
                 ads_cond = find_ads(post)
                 if not dublcate_cond and not ads_cond:
                     if not is_video:
@@ -157,7 +157,7 @@ async def post_generation(channel_name: str):
                                 results.append(clean_text(result['generation']))
                                 images_links.append(result.get('image_url'))
 
-                        cache_db.set(f'post_{channel_name}_{url}', post, ex=24 * 60 * 60 * 2)
+                        cache_db.set(f'post_{target_channel_id}_{url}', post, ex=24 * 60 * 60 * 2)
                     else:
                         logger.info('[VIDEO TAG]')
                 else:
@@ -186,7 +186,7 @@ async def channel_look_up(source_channels: list,
     images_links = []
     
     for chan in source_channels:
-        gen_posts, links = await post_generation(chan)
+        gen_posts, links = await post_generation(chan, target_channel_id)
         results.extend(gen_posts)
         images_links.extend(links)
 

@@ -1,22 +1,22 @@
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.graph import START, END, StateGraph
-from langgraph.checkpoint.memory import InMemorySaver
 from loguru import logger
 import asyncio
 from datetime import datetime
-from src.config import OPEN_ROUTER_API_KEY, TEXT_IMAGE_MODEL, TEXT_GENERATION_MODEL
+from src.config import OPEN_ROUTER_API_KEY, TEXT_IMAGE_MODEL, TEXT_GENERATION_MODEL, FINALIZER_LLM
 
 
 from src.agents.prompts import (rewiritter_prompt, relevance_prompt, image_selection_prompt,theme_prompt,
-                                image_description_prompt, meme_find_prompt,final_prompt)
+                                image_description_prompt, meme_find_prompt,final_prompt, filter_prompt)
 
 from src.agents.agent_schemas import SourceAgentGraph
 from src.agents.utils import preproc_text_on_banned_org, measure_time_async
 from src.tools.google_web_search import get_ddgs_image_loads
 from src.tools.utils import rm_img_folders
 from src.open_router import OpenRouterChat
-from src.agents.structured_outputs import ImageSelection
+from src.agents.structured_outputs import ImageSelection, FilterOutput
 
+logger.add("logger_result.log", format="{time} {level} {message}", level="INFO")
 
 llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
                      model_name=TEXT_GENERATION_MODEL)
@@ -25,7 +25,10 @@ text_image_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
                                model_name=TEXT_IMAGE_MODEL)
 
 finalizer_llm = OpenRouterChat(api_key=OPEN_ROUTER_API_KEY,
-                               model_name=TEXT_IMAGE_MODEL)
+                               model_name=FINALIZER_LLM)
+
+
+filter_agent = filter_prompt | llm.with_structured_output(FilterOutput)
 
 news_classifier_agent = relevance_prompt | llm | StrOutputParser()
 rewriter_agent = rewiritter_prompt | llm | StrOutputParser()
@@ -39,8 +42,19 @@ meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 final = final_prompt | finalizer_llm | StrOutputParser()
 
 
+@measure_time_async
+async def prefilter_node(state):
+    is_not_shit = await filter_agent.ainvoke({"post": state['post']})
+    state['good_news'] = is_not_shit.good_news
+    return state
 
-
+@measure_time_async
+async def prefilter_router(state):
+    if state['good_news']:
+        return "👀⁉️ClassifierReactionNode"
+    else:
+        return END
+    
 @measure_time_async
 async def classifier_node(state):
     post = state['post']
@@ -116,10 +130,24 @@ async def rewriter_node(state):
                        
         post += addititional_info
 
+    
     state['generation'] = await rewriter_agent.ainvoke({'post': post})
+
 
     return state
 
+@measure_time_async
+async def postfilter_node(state):
+    is_not_shit = await filter_agent.ainvoke({"post": state['generation']})
+    state['good_news'] = is_not_shit.good_news
+    return state
+
+@measure_time_async
+async def postfilter_router(state):
+    if state['good_news']:
+        return "👀🕸️🌏MakeSearchQuery"
+    else:
+        return END
 
 @measure_time_async
 async def select_search_query_node(state):
@@ -170,19 +198,29 @@ async def select_image_to_post_node(state):
 async def finalizer(state):
     text = preproc_text_on_banned_org(state['generation'])
     state['generation'] = await final.ainvoke({"post": text})
+    logger.critical(f"[GENERATED 2] {state['generation']}")
     return state
 
     
 workflow = StateGraph(SourceAgentGraph)
+workflow.add_node('📄⁉️PreFilterNode', prefilter_node)
 workflow.add_node('👀⁉️ClassifierReactionNode', classifier_node)
 workflow.add_node('🤡😂MemeNode', meme_node)
 workflow.add_node('✈️🖼️MediaCtxNode', media_ctx_node)
 workflow.add_node('📄✍️RewriterNode', rewriter_node)
+workflow.add_node('✍️⁉️PostFilterNode', postfilter_node)
 workflow.add_node("👀🕸️🌏MakeSearchQuery", select_search_query_node)
 workflow.add_node('👀🖼️SelectImage4Post', select_image_to_post_node)
 workflow.add_node('⁉️Finalizer', finalizer)
 
-workflow.add_edge(START, '👀⁉️ClassifierReactionNode')
+
+workflow.add_edge(START, '📄⁉️PreFilterNode')
+workflow.add_conditional_edges('📄⁉️PreFilterNode',
+                               prefilter_router,
+                               {"👀⁉️ClassifierReactionNode":"👀⁉️ClassifierReactionNode",
+                                END:END})
+
+#workflow.add_edge(START, '👀⁉️ClassifierReactionNode')
 workflow.add_conditional_edges('👀⁉️ClassifierReactionNode',
                                media_ctx_router,
                                {"🤡😂MemeNode":"🤡😂MemeNode",
@@ -194,7 +232,13 @@ workflow.add_conditional_edges('🤡😂MemeNode',
                                 END: END})
 
 workflow.add_edge("✈️🖼️MediaCtxNode","📄✍️RewriterNode")
-workflow.add_edge("📄✍️RewriterNode", "👀🕸️🌏MakeSearchQuery")
+#workflow.add_edge("📄✍️RewriterNode", "👀🕸️🌏MakeSearchQuery")
+workflow.add_edge("📄✍️RewriterNode", "✍️⁉️PostFilterNode")
+
+workflow.add_conditional_edges('✍️⁉️PostFilterNode',
+                               postfilter_router,
+                               {"👀🕸️🌏MakeSearchQuery":"👀🕸️🌏MakeSearchQuery",
+                                END:END})
 
 workflow.add_edge("👀🕸️🌏MakeSearchQuery", "👀🖼️SelectImage4Post")
 workflow.add_edge("👀🖼️SelectImage4Post", "⁉️Finalizer")
