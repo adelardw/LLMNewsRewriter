@@ -140,6 +140,7 @@ async def rewriter_node(state):
 async def postfilter_node(state):
     is_not_shit = await filter_agent.ainvoke({"post": state['generation']})
     state['good_news'] = is_not_shit.good_news
+    logger.info(f'[GOODGEN TAG] {state["good_news"]}')
     return state
 
 @measure_time_async

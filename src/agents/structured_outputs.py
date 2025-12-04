@@ -10,6 +10,6 @@ class ImageSelection(BaseModel):
     
 
 class FilterOutput(BaseModel):
-    good_news: Optional[str] = Field(..., description="True - если новость подходит чтобы её переписали"\
-                                                      "False новость мусорная, содержит какие - то непонятные факты"\
-                                                      "не имеет достаточно контекста для понимания.")
+    good_news: bool = Field(..., description="True - если новость подходит чтобы её переписали"\
+                                            "False новость мусорная, содержит какие - то непонятные факты"\
+                                            "не имеет достаточно контекста для понимания.")
