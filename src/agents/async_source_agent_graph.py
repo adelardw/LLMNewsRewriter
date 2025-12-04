@@ -42,10 +42,11 @@ meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 final = final_prompt | finalizer_llm | StrOutputParser()
 
 
-@measure_time_async
+'''@measure_time_async
 async def prefilter_node(state):
     is_not_shit = await filter_agent.ainvoke({"post": state['post']})
     state['good_news'] = is_not_shit.good_news
+    logger.info(f'[FILTERRESULT TAG] | Good News: {is_not_shit}')
     return state
 
 @measure_time_async
@@ -53,7 +54,7 @@ async def prefilter_router(state):
     if state['good_news']:
         return "👀⁉️ClassifierReactionNode"
     else:
-        return END
+        return END'''
     
 @measure_time_async
 async def classifier_node(state):
@@ -140,7 +141,8 @@ async def rewriter_node(state):
 async def postfilter_node(state):
     is_not_shit = await filter_agent.ainvoke({"post": state['generation']})
     state['good_news'] = is_not_shit.good_news
-    logger.info(f'[GOODGEN TAG] {state["good_news"]}')
+    state['generation'] = state['generation'] if state['good_news'] else None
+    logger.info(f'[GOODGEN TAG] | {state["good_news"]}')
     return state
 
 @measure_time_async
@@ -202,12 +204,12 @@ async def finalizer(state):
     generation = await final.ainvoke({"post": text})
     validation = await filter_agent.ainvoke({"post": generation})
     state['generation'] = generation if validation.good_news else None
-    logger.critical(f"[GENERATED 2] {state['generation']}")
+    logger.critical(f"[FINALGENERATED TAG] | {state['generation']}")
     return state
 
     
 workflow = StateGraph(SourceAgentGraph)
-workflow.add_node('📄⁉️PreFilterNode', prefilter_node)
+#workflow.add_node('📄⁉️PreFilterNode', prefilter_node)
 workflow.add_node('👀⁉️ClassifierReactionNode', classifier_node)
 workflow.add_node('🤡😂MemeNode', meme_node)
 workflow.add_node('✈️🖼️MediaCtxNode', media_ctx_node)
@@ -218,13 +220,13 @@ workflow.add_node('👀🖼️SelectImage4Post', select_image_to_post_node)
 workflow.add_node('⁉️Finalizer', finalizer)
 
 
-workflow.add_edge(START, '📄⁉️PreFilterNode')
-workflow.add_conditional_edges('📄⁉️PreFilterNode',
-                               prefilter_router,
-                               {"👀⁉️ClassifierReactionNode":"👀⁉️ClassifierReactionNode",
-                                END:END})
+# workflow.add_edge(START, '📄⁉️PreFilterNode')
+# workflow.add_conditional_edges('📄⁉️PreFilterNode',
+#                                prefilter_router,
+#                                {"👀⁉️ClassifierReactionNode":"👀⁉️ClassifierReactionNode",
+#                                 END:END})
 
-#workflow.add_edge(START, '👀⁉️ClassifierReactionNode')
+workflow.add_edge(START, '👀⁉️ClassifierReactionNode')
 workflow.add_conditional_edges('👀⁉️ClassifierReactionNode',
                                media_ctx_router,
                                {"🤡😂MemeNode":"🤡😂MemeNode",

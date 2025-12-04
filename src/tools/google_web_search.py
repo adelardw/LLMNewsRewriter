@@ -164,7 +164,7 @@ def get_ddgs_image_loads(query, max_images=5, base_path: str = TEMPLATE_PATH):
             results = loader.images(
                 query=query,
                 region='ru-ru',
-                safesearch='off',
+                safesearch='on',
                 max_results=max_images
             )
             
