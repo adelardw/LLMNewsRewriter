@@ -178,10 +178,11 @@ async def select_image_to_post_node(state):
 
     if finded_links:        
         try:
-            link_ind = await image_selection_agent.ainvoke({'query': "Какая картинка лучше всего подходит под следующий пост?"\
+            link_ind = await image_selection_agent.ainvoke({'query': "Какое изображение / фотография / картинка лучше всего подходит под следующий пост? \n "\
+                                                                    f"Текст поста: \n {generated_post} \n" \
                                                                     f"Найдено всего: {len(finded_links)} изображений",
-                                                     "post":generated_post,
-                                                     "image_url": finded_links})
+
+                                                            'image_url': finded_links})
             link_ind = int(link_ind.image_number)
             
             if link_ind != -1:
@@ -198,7 +199,9 @@ async def select_image_to_post_node(state):
 @measure_time_async
 async def finalizer(state):
     text = preproc_text_on_banned_org(state['generation'])
-    state['generation'] = await final.ainvoke({"post": text})
+    generation = await final.ainvoke({"post": text})
+    validation = await filter_agent.ainvoke({"post": generation})
+    state['generation'] = generation if validation.good_news else None
     logger.critical(f"[GENERATED 2] {state['generation']}")
     return state
 
