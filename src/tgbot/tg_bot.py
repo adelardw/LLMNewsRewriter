@@ -72,11 +72,11 @@ async def send_post_to_channel(bot: Bot, channel_id: int | str, post_text: str, 
                         await bot.send_photo(chat_id=channel_id, photo=buffered_file, caption=chunk)
                     except Exception as e:
                         logger.error(f"Не удалось отправить Data URI: {e}. Отправка текстом.")
-                        await bot.send_message(chat_id=channel_id, text=chunk)
+                        await bot.send_message(chat_id=channel_id, text=chunk, parse_mode="Markdown")
                 else:
-                    await bot.send_message(chat_id=channel_id, text=chunk)    
+                    await bot.send_message(chat_id=channel_id, text=chunk,parse_mode="Markdown")    
             else:        
-                await bot.send_message(chat_id=channel_id, text=chunk)
+                await bot.send_message(chat_id=channel_id, text=chunk,parse_mode="Markdown")
     except Exception as e:
         logger.critical(f"Ошибка при отправке поста в канал {channel_id}: {e}")
 
