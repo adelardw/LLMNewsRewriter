@@ -41,6 +41,7 @@ async def send_post_to_channel(bot: Bot, channel_id: int | str, post_text: str, 
     """
     Функция отправки поста в КОНКРЕТНЫЙ (channel_id) канал.
     """
+    post_text = post_text.replace("**", "*")
     try:
         message_chunks, need_photo_to_msg_chunk = prepare_messages(post_text)
 
@@ -57,7 +58,8 @@ async def send_post_to_channel(bot: Bot, channel_id: int | str, post_text: str, 
             if i == 0:
                 if is_valid_url and need_photo_to_msg_chunk:
                     try:
-                        await bot.send_photo(chat_id=channel_id, photo=image_link, caption=chunk)
+                        await bot.send_photo(chat_id=channel_id, photo=image_link, caption=chunk,
+                                             parse_mode="Markdown")
                     except Exception as e:
                         logger.error(f"Не удалось отправить фото по URL: {e}. Отправка текстом.")
                         await bot.send_message(chat_id=channel_id, text=chunk,
