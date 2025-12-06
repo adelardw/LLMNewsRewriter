@@ -60,7 +60,8 @@ async def send_post_to_channel(bot: Bot, channel_id: int | str, post_text: str, 
                         await bot.send_photo(chat_id=channel_id, photo=image_link, caption=chunk)
                     except Exception as e:
                         logger.error(f"Не удалось отправить фото по URL: {e}. Отправка текстом.")
-                        await bot.send_message(chat_id=channel_id, text=chunk)
+                        await bot.send_message(chat_id=channel_id, text=chunk,
+                                               parse_mode="Markdown")
                 
                 elif is_data_uri and need_photo_to_msg_chunk:
                     try:
