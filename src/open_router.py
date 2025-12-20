@@ -1,15 +1,15 @@
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_core.messages import SystemMessage, HumanMessage
-from loguru import logger
 from openai import OpenAI
 import typing as tp
 from pydantic import BaseModel
 import json
 import typing as tp
 import json
-# Импортируем правильные классы из LangChain
+
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.embeddings.embeddings import Embeddings
 from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
@@ -18,7 +18,6 @@ from langchain_core.messages import (
 )
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.callbacks import CallbackManagerForLLMRun
-
 
 
 class OpenRouterChat(BaseChatModel):
@@ -42,7 +41,6 @@ class OpenRouterChat(BaseChatModel):
 
         default_kwargs = {
             "temperature": 1e-5,
-            "max_tokens": 2000, # Увеличим для сложных JSON
         }
         self.generation_kwargs = default_kwargs if not generation_kwargs else generation_kwargs
 
@@ -205,17 +203,13 @@ class OpenRouterChat(BaseChatModel):
         )
 
         message = result.generations[0].message
+
         if self._schema and "structured_output" in message.response_metadata:
+
             return message.response_metadata["structured_output"]
 
         return message
 
-    async def ainvoke(self, input, config = None, *, stop = None, **kwargs):
-        message = await super().ainvoke(input, config, stop=stop, **kwargs)
-        if self._schema and "structured_output" in message.response_metadata:
-            return message.response_metadata["structured_output"]
-
-        return message
     def bind_tools(
         self,
         tools: tp.List[tp.Union[tp.Dict[str, tp.Any], tp.Type[BaseModel]]],
@@ -239,3 +233,51 @@ class OpenRouterChat(BaseChatModel):
                                 model_name=self._model_name)
         new_obj._schema = schema
         return new_obj
+    
+    async def ainvoke(self, input, config = None, *, stop = None, **kwargs):
+        message = await super().ainvoke(input, config, stop=stop, **kwargs)
+        if self._schema and "structured_output" in message.response_metadata:
+            return message.response_metadata["structured_output"]
+
+        return message
+    
+    
+    
+class OpenRouterEmbeddings(Embeddings):
+    def __init__(self, api_key: str, model_name: str):
+        self._api_key = api_key
+        self._client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+        self._model_name = model_name
+        
+    
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Embed search docs.
+
+        Args:
+            texts: List of text to embed.
+
+        Returns:
+            List of embeddings.
+        """
+
+        embedding =self._client.embeddings.create(
+        model=self._model_name,
+        input=texts,
+        encoding_format="float")
+        return [embed.embedding for embed in embedding.data]
+
+
+    def embed_query(self, text: str) -> list[float]:
+        """Embed query text.
+
+        Args:
+            text: Text to embed.
+
+        Returns:
+            Embedding.
+        """
+        embedding =self._client.embeddings.create(
+        model=self._model_name,
+        input=text,
+        encoding_format="float")
+        return embedding.data[0].embedding
