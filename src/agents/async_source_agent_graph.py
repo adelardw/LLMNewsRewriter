@@ -11,8 +11,8 @@ from src.agents.prompts import (rewiritter_prompt, relevance_prompt, image_selec
 
 from src.agents.agent_schemas import SourceAgentGraph
 from src.agents.utils import preproc_text_on_banned_org, measure_time_async
-from src.tools.google_web_search import get_ddgs_image_loads
-from src.tools.utils import rm_img_folders
+from src.agents.images_search import get_ddgs_image_loads
+from src.agents.utils import rm_img_folders
 from src.open_router import OpenRouterChat
 from src.agents.structured_outputs import ImageSelection, FilterOutput
 
@@ -41,20 +41,6 @@ meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 
 final = final_prompt | finalizer_llm | StrOutputParser()
 
-
-'''@measure_time_async
-async def prefilter_node(state):
-    is_not_shit = await filter_agent.ainvoke({"post": state['post']})
-    state['good_news'] = is_not_shit.good_news
-    logger.info(f'[FILTERRESULT TAG] | Good News: {is_not_shit}')
-    return state
-
-@measure_time_async
-async def prefilter_router(state):
-    if state['good_news']:
-        return "👀⁉️ClassifierReactionNode"
-    else:
-        return END'''
     
 @measure_time_async
 async def classifier_node(state):
@@ -209,7 +195,6 @@ async def finalizer(state):
 
     
 workflow = StateGraph(SourceAgentGraph)
-#workflow.add_node('📄⁉️PreFilterNode', prefilter_node)
 workflow.add_node('👀⁉️ClassifierReactionNode', classifier_node)
 workflow.add_node('🤡😂MemeNode', meme_node)
 workflow.add_node('✈️🖼️MediaCtxNode', media_ctx_node)
@@ -218,13 +203,6 @@ workflow.add_node('✍️⁉️PostFilterNode', postfilter_node)
 workflow.add_node("👀🕸️🌏MakeSearchQuery", select_search_query_node)
 workflow.add_node('👀🖼️SelectImage4Post', select_image_to_post_node)
 workflow.add_node('⁉️Finalizer', finalizer)
-
-
-# workflow.add_edge(START, '📄⁉️PreFilterNode')
-# workflow.add_conditional_edges('📄⁉️PreFilterNode',
-#                                prefilter_router,
-#                                {"👀⁉️ClassifierReactionNode":"👀⁉️ClassifierReactionNode",
-#                                 END:END})
 
 workflow.add_edge(START, '👀⁉️ClassifierReactionNode')
 workflow.add_conditional_edges('👀⁉️ClassifierReactionNode',

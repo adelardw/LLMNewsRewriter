@@ -11,8 +11,6 @@ import typing as tp
 GENERAL_SAVE_PATH = os.path.abspath(os.path.curdir)
 CONFIG_PATH = os.path.join(GENERAL_SAVE_PATH, 'config.yml')
 TIMEZONE = 'Europe/Moscow'
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-CX_ID = os.getenv('CX_ID')
 OPEN_ROUTER_API_KEY = os.getenv('OPEN_ROUTER_API_KEY')
 TEXT_GENERATION_MODEL = os.getenv('TEXT_GENERATION_MODEL')
 

@@ -17,16 +17,15 @@ from loguru import logger
 from src.tgbot.cache import cache_db
 from src.agents.async_source_agent_graph import async_graph
 from src.tgbot.bot_schemas import BotStates
-from src.tgbot.utils import (HFLCSSimTexts,
-                             is_junk_post_regex,
+from src.tgbot.utils import (SimillarSearchOpenRouter,
+                             is_junk_post_regex,get_channel_posts,
                             find_tg_channels_by_link, find_tg_channels, find_dublicates, find_ads,
                             find_on_banned_org, clean_text, prepare_messages)
 
-from src.tools.telegram_web_search import get_channel_posts
 from src.config import tgc_search_kwargs, news_word_threshold, TIMEZONE, ADMIN_ID, API_TOKEN, CHANNELS_IDS
 
 
-embedder = HFLCSSimTexts()
+embedder = SimillarSearchOpenRouter()
 storage = MemoryStorage()
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=storage)
@@ -137,7 +136,7 @@ async def post_generation(channel_name: str, target_channel_id: int | str):
             media_links = posts.get('media_links', [])
 
             if post:
-                dublcate_cond = find_dublicates(embedder, cache_db, post, target_channel_id, 0.7)
+                dublcate_cond = await find_dublicates(embedder, cache_db, post, target_channel_id, 0.7)
                 ads_cond = find_ads(post)
                 if not dublcate_cond and not ads_cond:
                     if not is_video:
