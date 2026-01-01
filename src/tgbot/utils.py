@@ -289,13 +289,13 @@ class SimillarSearchOpenRouter:
     async def cossine_simmilar(self, input_text: str, target_text: str):
 
         embed_input = np.array((await self.embed.aembed_query(input_text)))
-        embed_target = np.array((await self.embed.aembed_query(input_text)))
+        embed_target = np.array((await self.embed.aembed_query(target_text)))
 
         return (embed_input * embed_target).sum()
 
 async def find_dublicates(embedder: SimillarSearchOpenRouter, cache: StrictRedis, post: str,
                     target_channel_id: str,
-                    threshold: float = 0.7):
+                    threshold: float = 0.9):
     
     for key in cache.scan_iter(match=f'post_{target_channel_id}_*'):
         cached_post = cache.get(key).decode()

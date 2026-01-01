@@ -159,7 +159,7 @@ async def post_generation(channel_name: str, target_channel_id: int | str):
                                 results.append(clean_text(result['generation']))
                                 images_links.append(result.get('image_url'))
 
-                        cache_db.set(f'post_{target_channel_id}_{url}', post, ex=24 * 60 * 60 * 2)
+                        cache_db.set(f'post_{target_channel_id}_{url}', post, ex=24 * 60 * 60)
                     else:
                         logger.info('[VIDEO TAG]')
                 else:
