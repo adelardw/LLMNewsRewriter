@@ -55,10 +55,11 @@ def get_ddgs_image_loads(query, max_images=10, base_path=TEMPLATE_PATH):
         with DDGS() as loader:
             results = loader.images(
                 query=query,
-                region='wt-wt',
+                region='ru-ru',
                 safesearch='on',
                 size="Wallpaper",
                 type_image="photo",
+                time="Week",
                 max_results=max_images
             )
             
