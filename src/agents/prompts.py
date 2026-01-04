@@ -1,7 +1,7 @@
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.runnables import RunnableLambda
-from typing import Optional
+from typing import Optional, Any
 
 BLOG_SEG = '<<Автопутешествия>>' # FUTURE FOR BLOGGER AGENT
 PSYCHO_TYPE = '<<Психотип>>' # FUTURE FOR BLOGGER AGENT
@@ -147,6 +147,19 @@ CORE_SEARCH_PROMPT = ('Ты - профессионал в формировани
                     'Старайся быть краток, не пиши очень подробные запросы, можешь обойтись даже ключевыми поисковыми словами.'
                     '[КРИТЕРИИ]:'
                     '1. от 2 до 8 слов максимум')
+
+CORE_IMAGE_VALIDATION = """ Ты выполняешь роль фильтра изображений. Тебе может быть известно референсные изображения к новости.
+Может быть известно найденное изображение в интернете. И тебе всегда известна сама новость.
+[Логика]:
+1. Если в референсном контексте есть изображения и если есть найденное изображение:
+Сравнить подходит ли найденное изображение к одному из референсных.
+2. Если в референсном контексте нет изображений, но есть найденное изображение из интернета:
+Cравнить, подходит ли изображение под новость.
+
+[Формат ответа]
+Если подходит - верни ответ строго в соответсвии со схемой.
+
+"""
                   
 
 
@@ -171,27 +184,85 @@ theme_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_SEARCH_PROMPT),
 final_prompt = ChatPromptTemplate.from_messages([ ("system",CORE_FINALIZER_PROMPT),
                                                   ("human","Пост: \n {post} \n")])
 
-def image_text_prompt(sys_prompt: Optional[str], input_dict: dict):
+def image_text_prompt(sys_prompt: Optional[str], input_dict: dict, history_key: str | None = None):
 
     contents = []
+    history = input_dict.get(history_key, [])
+    
     for key, value in input_dict.items():
-        if key != 'image_url':
+
+        if key == history_key:
+            continue
+        
+        if (key != 'image_url'):
             contents.append({"type": "text",'text': value})
 
-    if image_url:= input_dict.get('image_url', None):
-        if isinstance(image_url, list):
-            for link in image_url:
-                    contents += [{"type": "image_url",'image_url': {'url': link}}]
         else:
-            contents += [{"type": "image_url",'image_url': {'url': image_url}}]
+            urls = value if isinstance(value, list) else [value]
+            for link in urls:
+                contents.append({"type": key, key: {"url": link}})
+                
 
-    return [SystemMessage(content=sys_prompt) ,
-            HumanMessage(content=contents)] if sys_prompt else [HumanMessage(content=contents)]
+    messages = []
+    if sys_prompt:
+        messages.append(SystemMessage(content=sys_prompt))
+    
+    messages.extend(history)
+    if contents:
+        messages.append(HumanMessage(content=contents))
+    
+    return messages
+
+
+def prepare_cache_messages_to_langchain(history_list: list[dict[str, Any]]):
+    if history_list:
+        langchain_history = [SystemMessage(content=f'--- Контекст (Референс) ---')]
+
+        for i, message in enumerate(history_list):
+            role = message.get('role')
+            content_str = message.get('content', '[Нет текста]')
+            metadata = message.get('metadata') or {}
+
+            images = metadata.get('images')
+            content_blocks = []
+
+            if images:
+                content_blocks = [{"type": "text", "text": content_str}]
+
+                if isinstance(images, list):
+                    for img_url in images:
+                        content_blocks.append({
+                            "type": "image_url",
+                            "image_url": {"url": img_url} 
+                        })
+                else:
+                    content_blocks.append({
+                        "type": "image_url",
+                        "image_url": {"url": images}
+                    })
+            else:
+                content_blocks = content_str
+
+
+            if role == 'system':
+                langchain_history.append(SystemMessage(content=content_blocks))
+
+            elif role in {'assistant'}:
+                langchain_history.append(AIMessage(content=content_blocks))
+
+            elif role in {'human', 'user'}:
+                langchain_history.append(HumanMessage(content=content_blocks))
+        
+        langchain_history.append(SystemMessage(content=f'--- Конец Контекста (Референса) ---'))
+        return langchain_history
+    else:
+        return []
+    
 
 
 
-image_selection_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_IMAGE_SELECTION, x))
-image_description_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_IMAGE_DESCRIPTION, x))
+image_selection_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_IMAGE_SELECTION, x, history_key=None))
+image_description_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_IMAGE_DESCRIPTION, x, history_key=None))
+image_validation_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_IMAGE_VALIDATION, x, history_key='history'))
 
-
-meme_find_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_MEME_POST_FILTER, x)) 
+meme_find_prompt = RunnableLambda(lambda x: image_text_prompt(CORE_MEME_POST_FILTER, x, history_key=None)) 

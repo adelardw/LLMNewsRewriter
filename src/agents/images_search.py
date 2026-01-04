@@ -37,7 +37,7 @@ def get_bing_image_loads(keyword: str,
 
 
 
-def get_ddgs_image_loads(query, max_images=5, base_path=TEMPLATE_PATH):
+def get_ddgs_image_loads(query, max_images=10, base_path=TEMPLATE_PATH):
     if not os.path.exists(base_path):
         os.makedirs(base_path, exist_ok=True)
     
@@ -58,7 +58,8 @@ def get_ddgs_image_loads(query, max_images=5, base_path=TEMPLATE_PATH):
                 region='wt-wt',
                 safesearch='on',
                 size="Wallpaper",
-                type_image="photo"
+                type_image="photo",
+                max_results=max_images
             )
             
             count = 0

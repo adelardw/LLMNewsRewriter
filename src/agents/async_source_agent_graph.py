@@ -7,14 +7,15 @@ from src.config import OPEN_ROUTER_API_KEY, TEXT_IMAGE_MODEL, TEXT_GENERATION_MO
 
 
 from src.agents.prompts import (rewiritter_prompt, relevance_prompt, image_selection_prompt,theme_prompt,
-                                image_description_prompt, meme_find_prompt,final_prompt, filter_prompt)
+                                image_description_prompt, meme_find_prompt,final_prompt, filter_prompt,
+                                image_validation_prompt, prepare_cache_messages_to_langchain)
 
 from src.agents.agent_schemas import SourceAgentGraph
 from src.agents.utils import preproc_text_on_banned_org, measure_time_async
 from src.agents.images_search import get_ddgs_image_loads
 from src.agents.utils import rm_img_folders
 from src.open_router import OpenRouterChat
-from src.agents.structured_outputs import ImageSelection, FilterOutput
+from src.agents.structured_outputs import ImageSelection, FilterOutput, ImageRelevanceFilter
 
 logger.add("logger_result.log", format="{time} {level} {message}", level="INFO")
 
@@ -40,6 +41,8 @@ image_description_agent = image_description_prompt | text_image_llm | StrOutputP
 meme_agent = meme_find_prompt | text_image_llm | StrOutputParser()
 
 final = final_prompt | finalizer_llm | StrOutputParser()
+image_relevancer = image_validation_prompt | text_image_llm.with_structured_output(ImageRelevanceFilter)
+
 
     
 @measure_time_async
@@ -161,7 +164,7 @@ async def select_image_to_post_node(state):
     search_query = state['search_query']
     generated_post = state['generation']
     
-    finded_links = await asyncio.to_thread(get_ddgs_image_loads, query=search_query, max_images=5)
+    finded_links = await asyncio.to_thread(get_ddgs_image_loads, query=search_query, max_images=10)
     rm_img_folders()
 
     if finded_links:        
@@ -171,10 +174,10 @@ async def select_image_to_post_node(state):
                                                                     f"Найдено всего: {len(finded_links)} изображений",
 
                                                             'image_url': finded_links})
-            link_ind = int(link_ind.image_number)
+            link_ind = link_ind.image_number
             
-            if link_ind != -1:
-                url = finded_links.pop(link_ind)
+            if link_ind:
+                url = [image for i, image in enumerate(finded_links) if i in link_ind]
                 return {**state, 'image_url': url}
             else:   
                 return {**state, 'image_url': None}
@@ -189,7 +192,20 @@ async def finalizer(state):
     text = preproc_text_on_banned_org(state['generation'])
     generation = await final.ainvoke({"post": text})
     validation = await filter_agent.ainvoke({"post": generation})
-    state['generation'] = generation if validation.good_news else None
+    generation = generation if validation.good_news else None
+    if generation and (images:=state.get('image_url')):
+        history_list = [{"role": "human", "content": "", "metadata": {'images': state.get('media_links', [])}}]
+        history = prepare_cache_messages_to_langchain(history_list)
+        image_validation = await image_relevancer.ainvoke({"history": history,
+                                                           "image_url": images,
+                                                           "post": f"Новость: {generation}"})
+        if not image_validation.answer:
+            state['image_url'] = []
+        else:
+            state['image_url'] = [image for i, image in enumerate(state['image_url']) if i in image_validation.image_number]
+
+    state['generation'] = generation
+    
     logger.critical(f"[FINALGENERATED TAG] | {state['generation']}")
     return state
 
@@ -216,9 +232,7 @@ workflow.add_conditional_edges('🤡😂MemeNode',
                                 END: END})
 
 workflow.add_edge("✈️🖼️MediaCtxNode","📄✍️RewriterNode")
-#workflow.add_edge("📄✍️RewriterNode", "👀🕸️🌏MakeSearchQuery")
 workflow.add_edge("📄✍️RewriterNode", "✍️⁉️PostFilterNode")
-
 workflow.add_conditional_edges('✍️⁉️PostFilterNode',
                                postfilter_router,
                                {"👀🕸️🌏MakeSearchQuery":"👀🕸️🌏MakeSearchQuery",
