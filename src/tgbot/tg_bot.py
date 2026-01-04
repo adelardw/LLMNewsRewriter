@@ -7,6 +7,7 @@ from collections import deque
 from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
+from aiogram.types import InputMediaPhoto, BufferedInputFile
 from aiogram.fsm.storage.base import BaseStorage, StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import KeyboardButton, ReplyKeyboardRemove, BufferedInputFile
@@ -36,48 +37,88 @@ TARGET_CHANNELS_CACHE = {}
 
 
 
-async def send_post_to_channel(bot: Bot, channel_id: int | str, post_text: str, image_link: tp.Optional[str]):
+
+def decode_data_uri(uri: str) -> BufferedInputFile:
+    header, encoded_data = uri.split(',', 1)
+    mime_type = header.split(';')[0].split('/')[-1]
+    image_bytes = base64.b64decode(encoded_data)
+    return BufferedInputFile(image_bytes, filename=f"image.{mime_type}")
+
+async def send_post_to_channel(bot: Bot, channel_id: int | str, post_text: str, image_links: tp.Optional[list[str]] = None):
     """
     Функция отправки поста в КОНКРЕТНЫЙ (channel_id) канал.
+    Поддерживает отправку одной картинки или альбома (MediaGroup), если image_links содержит несколько ссылок.
     """
     post_text = post_text.replace("**", "*")
+    
+    if image_links is None:
+        image_links = []
+        
     try:
         message_chunks, need_photo_to_msg_chunk = prepare_messages(post_text)
 
-        is_valid_url = False
-        is_data_uri = False
-        
-        if image_link:
-            if image_link.startswith(('http://', 'https://')):
-                is_valid_url = True
-            elif image_link.startswith('data:image/'):
-                is_data_uri = True
-
         for i, chunk in enumerate(message_chunks):
             if i == 0:
-                if is_valid_url and need_photo_to_msg_chunk:
+                if need_photo_to_msg_chunk and image_links:
                     try:
-                        await bot.send_photo(chat_id=channel_id, photo=image_link, caption=chunk,
-                                             parse_mode="Markdown")
+                        if len(image_links) > 1:
+                            media_group = []
+                            for idx, link in enumerate(image_links):
+                                media_item = None
+                                
+                                if link.startswith('data:image/'):
+                                    try:
+                                        media_file = decode_data_uri(link)
+                                        media_item = InputMediaPhoto(media=media_file)
+                                    except Exception as e:
+                                        logger.error(f"Ошибка декодирования Data URI в группе: {e}")
+                                        continue
+                                elif link.startswith(('http://', 'https://')):
+                                    media_item = InputMediaPhoto(media=link)
+                                else:
+                                    continue 
+
+                                if idx == 0 and media_item:
+                                    media_item.caption = chunk
+                                    media_item.parse_mode = "Markdown"
+                                
+                                if media_item:
+                                    media_group.append(media_item)
+
+                            if media_group:
+                                await bot.send_media_group(chat_id=channel_id, media=media_group)
+                            else:
+                                await bot.send_message(chat_id=channel_id, text=chunk, parse_mode="Markdown")
+
+                        else:
+                            link = image_links[0]
+                            if link.startswith('data:image/'):
+                                try:
+                                    photo_file = decode_data_uri(link)
+                                    await bot.send_photo(chat_id=channel_id, photo=photo_file, caption=chunk, parse_mode="Markdown")
+                                except Exception as e:
+                                    logger.error(f"Не удалось отправить Data URI (single): {e}")
+                                    await bot.send_message(chat_id=channel_id, text=chunk, parse_mode="Markdown")
+                            
+                            elif link.startswith(('http://', 'https://')):
+                                try:
+                                    await bot.send_photo(chat_id=channel_id, photo=link, caption=chunk, parse_mode="Markdown")
+                                except Exception as e:
+                                    logger.error(f"Не удалось отправить фото по URL: {e}. Отправка текстом.")
+                                    await bot.send_message(chat_id=channel_id, text=chunk, parse_mode="Markdown")
+                            else:
+                                await bot.send_message(chat_id=channel_id, text=chunk, parse_mode="Markdown")
+
                     except Exception as e:
-                        logger.error(f"Не удалось отправить фото по URL: {e}. Отправка текстом.")
-                        await bot.send_message(chat_id=channel_id, text=chunk,
-                                               parse_mode="Markdown")
-                
-                elif is_data_uri and need_photo_to_msg_chunk:
-                    try:
-                        header, encoded_data = image_link.split(',', 1)
-                        mime_type = header.split(';')[0].split('/')[-1] 
-                        image_bytes = base64.b64decode(encoded_data)
-                        buffered_file = BufferedInputFile(image_bytes, filename=f"image.{mime_type}")
-                        await bot.send_photo(chat_id=channel_id, photo=buffered_file, caption=chunk)
-                    except Exception as e:
-                        logger.error(f"Не удалось отправить Data URI: {e}. Отправка текстом.")
+                        logger.error(f"Общая ошибка при отправке медиа: {e}. Отправляем просто текст.")
                         await bot.send_message(chat_id=channel_id, text=chunk, parse_mode="Markdown")
+                
                 else:
-                    await bot.send_message(chat_id=channel_id, text=chunk,parse_mode="Markdown")    
+                    await bot.send_message(chat_id=channel_id, text=chunk, parse_mode="Markdown")
+            
             else:        
-                await bot.send_message(chat_id=channel_id, text=chunk,parse_mode="Markdown")
+                await bot.send_message(chat_id=channel_id, text=chunk, parse_mode="Markdown")
+                
     except Exception as e:
         logger.critical(f"Ошибка при отправке поста в канал {channel_id}: {e}")
 
