@@ -9,3 +9,6 @@ images/
 tgc_bot.egg-info/
 qdrant_data/
 tmp/
+.env
+### LOG FILES MUST SUFFER!
+*.log
