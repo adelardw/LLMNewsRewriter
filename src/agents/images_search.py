@@ -106,5 +106,11 @@ def get_ddgs_image_loads(query, max_images=10, base_path=TEMPLATE_PATH):
         return get_links_for_images(save_directory)
 
     except Exception as e:
-        logger.error(f"Глобальная ошибка: {e}")
+        downloader.download(query, limit=5,  output_dir=base_path, timeout=4)
+        save_directory = os.path.join(base_path, query)
+        if os.listdir(save_directory):
+            return get_links_for_images(save_directory)
+        else:
+            logger.error(f"Глобальная ошибка: {e}")
+            return []
         return []
